@@ -38,6 +38,10 @@ def gen_pi(output):
         yield (b'--frame\r\n'
                 b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
+camera = picamera.PiCamera(resolution='640x480', framerate=24)
+output = StreamingOutput()
+camera.start_recording(output, format='mjpeg')
+
 
 # Define Endpoint
 app = Flask(__name__)
@@ -110,9 +114,6 @@ class HealthCheck(Resource):
 
 
 if __name__ == "__main__":
-    with picamera.PiCamera(resolution='640x480', framerate=24) as camera:
-        output = StreamingOutput()
-        camera.start_recording(output, format='mjpeg')
         try:
             app.run(host=HOST, port=PORT, debug=DEBUG)
         finally:
