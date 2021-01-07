@@ -32,7 +32,7 @@ How it works:
 ### Hardware
 - Raspberry Pi (Tested with RP 4 Model B)
 - Raspberry Pi Camera Module V1 or V2
-- Camera Mount for your telescope (see `Camera Mount`)
+- Camera Mount for your telescope (see [Camera Mount](#Camera\ Mount))
 
 
 ## Instructions
