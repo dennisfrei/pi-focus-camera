@@ -1,0 +1,17 @@
+# Raspberry Pi camera stack — install ONLY on the device, never on a dev box.
+# These packages build against the on-device libcamera and have no dev-box wheels.
+#
+# Path A (keeps uv + Python 3.14):
+#     uv pip install -r requirements-pi.txt
+#   Verify wheels exist for your Python/libcamera first; rpi-libcamera is version-sensitive.
+#
+# Path B (most reliable — uses the apt package instead of these):
+#     sudo apt install -y python3-picamera2 python3-libcamera
+#     uv venv --system-site-packages --python /usr/bin/python3
+#   In that case you do NOT install this file.
+#
+# See CONCEPT.md §7 for the full rationale.
+
+picamera2>=0.3.22
+rpi-libcamera>=0.1a6
+rpi-kms>=0.1a1
