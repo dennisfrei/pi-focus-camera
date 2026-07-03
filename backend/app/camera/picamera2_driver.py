@@ -17,6 +17,7 @@ import io
 import logging
 
 import anyio
+import numpy as np
 from picamera2 import Picamera2
 from picamera2.encoders import JpegEncoder
 from picamera2.outputs import FileOutput
@@ -45,6 +46,7 @@ class Picamera2Camera:
     def __init__(self, width: int = 1280, height: int = 720) -> None:
         self._w = width
         self._h = height
+        self.supports_hw_zoom = True
         self._picam2 = Picamera2()  # raises if no camera present -> manager falls back to mock
         self.profile: CameraProfile = build_profile(self._picam2, (width, height))
         logger.info(
@@ -64,10 +66,16 @@ class Picamera2Camera:
         await anyio.to_thread.run_sync(self._start_sync)
 
     def _start_sync(self) -> None:
-        config = self._picam2.create_video_configuration(main={"size": (self._w, self._h)})
+        # A second low-res YUV420 "lores" stream rides alongside the JPEG-encoded main stream; its
+        # Y plane is the uncompressed luma the focus metric analyzes (no JPEG decode, no
+        # quantization loss on faint stars). See CONCEPT §4.
+        config = self._picam2.create_video_configuration(
+            main={"size": (self._w, self._h)},
+            lores={"size": (self._w, self._h), "format": "YUV420"},
+        )
         self._picam2.configure(config)
         output = _BrokerOutput(self._emit)
-        self._picam2.start_recording(JpegEncoder(), FileOutput(output))
+        self._picam2.start_recording(JpegEncoder(), FileOutput(output), name="main")
         self._recording = True
 
     def _emit(self, frame: bytes) -> None:
@@ -90,3 +98,34 @@ class Picamera2Camera:
         # libcamera controls (e.g. ExposureTime in µs, AnalogueGain) apply live while recording.
         await anyio.to_thread.run_sync(self._picam2.set_controls, values)
         self._controls.update(values)
+
+    def get_luma(self) -> np.ndarray | None:
+        """The lores stream's Y plane. Called from the focus worker thread (capture is blocking)."""
+        if not self._recording:
+            return None
+        yuv = self._picam2.capture_array("lores")  # YUV420: Y occupies the first `h` rows
+        return np.ascontiguousarray(yuv[: self._h, : self._w])
+
+    def _full_crop(self) -> tuple[int, int, int, int]:
+        """The sensor rectangle a normalized ROI is measured against (max ScalerCrop region)."""
+        props = self._picam2.camera_properties
+        maximum = props.get("ScalerCropMaximum")
+        if maximum and maximum[2] and maximum[3]:
+            return tuple(int(v) for v in maximum)  # type: ignore[return-value]
+        w, h = props.get("PixelArraySize", (self._w, self._h))
+        return (0, 0, int(w), int(h))
+
+    async def set_zoom(self, roi: tuple[float, float, float, float] | None) -> None:
+        await anyio.to_thread.run_sync(self._set_zoom_sync, roi)
+
+    def _set_zoom_sync(self, roi: tuple[float, float, float, float] | None) -> None:
+        x, y, full_w, full_h = self._full_crop()
+        if roi is None:
+            crop = (x, y, full_w, full_h)
+        else:
+            x0, y0, x1, y1 = roi
+            cw = max(1, int((x1 - x0) * full_w))
+            ch = max(1, int((y1 - y0) * full_h))
+            crop = (x + int(x0 * full_w), y + int(y0 * full_h), cw, ch)
+        self._picam2.set_controls({"ScalerCrop": crop})
+        self._controls["ScalerCrop"] = crop

@@ -48,9 +48,10 @@ class CameraManager:
         self.lock = asyncio.Lock()  # serializes capture / mode switches (M4)
         self.started = False
 
-        # Focus assist
+        # Focus assist. Star mode (HFD) is the night default — the app's on-sky reason to exist.
         self.focus_hz = settings.focus_hz
         self.focus_roi: focus.ROI | None = None
+        self.focus_mode = "star"
         self.metrics: dict = {"focus_score": 0.0, "histogram": [], "clipping": 0.0, "roi": None}
         self._analyze_task: asyncio.Task | None = None
 
@@ -63,6 +64,16 @@ class CameraManager:
 
     def set_focus_roi(self, roi: focus.ROI | None) -> None:
         self.focus_roi = roi
+
+    def set_focus_mode(self, mode: str) -> str:
+        """Switch the metric between 'scene' (Laplacian) and 'star' (HFD); ignores unknown modes."""
+        if mode in ("scene", "star"):
+            self.focus_mode = mode
+        return self.focus_mode
+
+    async def set_zoom(self, roi: focus.ROI | None) -> None:
+        """Ask the driver for a true 1:1 sensor crop (no-op on the mock, which zooms in CSS)."""
+        await self.camera.set_zoom(roi)
 
     async def start(self) -> None:
         await self.camera.start(self.broker)
@@ -95,8 +106,9 @@ class CameraManager:
     async def _analyze_loop(self) -> None:
         """Compute focus/histogram metrics off the newest preview frame, throttled.
 
-        Decoding + numpy is CPU-bound, so it runs in a worker thread to keep the event loop free.
-        Only whole new frames are analyzed; if analysis can't keep up, frames are simply skipped.
+        The luma fetch + numpy is CPU-bound (and the real driver's capture blocks), so it runs in a
+        worker thread. A freshly published JPEG is the "new frame" signal; if analysis can't keep
+        up, frames are simply skipped.
         """
         interval = 1.0 / max(self.focus_hz, 1)
         last_frame: bytes | None = None
@@ -106,11 +118,18 @@ class CameraManager:
                 last_frame = frame
                 try:
                     self.metrics = await anyio.to_thread.run_sync(
-                        focus.analyze, frame, self.focus_roi
+                        self._compute_metrics, frame, self.focus_roi, self.focus_mode
                     )
                 except Exception:  # noqa: BLE001 - never let analysis kill the loop
                     logger.exception("Focus analysis failed")
             await asyncio.sleep(interval)
+
+    def _compute_metrics(self, frame: bytes, roi: focus.ROI | None, mode: str) -> dict:
+        """Analyze the driver's luma plane if it has one, else fall back to decoding the JPEG."""
+        luma = self.camera.get_luma()
+        if luma is not None:
+            return focus.analyze_luma(luma, roi, mode)
+        return focus.analyze(frame, roi, mode)
 
     async def get_controls(self) -> dict:
         return await self.camera.get_controls()

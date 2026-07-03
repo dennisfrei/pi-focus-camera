@@ -1,12 +1,17 @@
-"""Focus-assist metrics computed from preview JPEG frames.
+"""Focus-assist metrics, computed on the uncompressed luma plane.
 
-The key number is a **sharpness score** (variance of the Laplacian): it rises as the image gets
-crisper, so you turn the focuser to maximize it. Also returns a luminance **histogram** and a
-**clipping** fraction to avoid blown highlights. Everything is plain numpy so it runs on the Pi.
+Two modes, because focusing on a detailed scene and on a lone star are different problems:
 
-The score is scene-dependent and unbounded, so we return the raw value — the frontend tracks a
-rolling maximum to render a 0–100 % bar. All analysis can be restricted to a normalized ROI so the
-metric reflects the exact star/edge you're focusing on.
+- **Scene** (Moon, planets, terrestrial): variance of the Laplacian — rises as edges get crisp, so
+  you turn the focuser to *maximize* it. Unreliable on a single star against black, where shot
+  noise is itself high-frequency signal.
+- **Star** (night default): the brightest star's **HFD** (half-flux diameter) — the diameter that
+  encloses half the star's flux. It shrinks toward focus, so you *minimize* it; it's stable and
+  near-linear near focus (what SharpCap/NINA use). We also return **peak** intensity (maximize).
+
+Analysis runs on a grayscale ``uint8`` frame — on the Pi the picamera2 *lores* luma plane, on the
+mock a synthesized one — never a decoded JPEG, whose quantization would crush faint-star signal.
+Everything is plain numpy so it runs on the Pi. All analysis can be restricted to a normalized ROI.
 """
 
 from __future__ import annotations
@@ -21,6 +26,12 @@ ROI = tuple[float, float, float, float]
 
 HIST_BINS = 64
 _MIN_ROI_PX = 8
+# A star must sit this far above the local background (in luma counts) to be measured — otherwise
+# HFD is meaningless and we report "no star" rather than a misleadingly tiny diameter.
+_STAR_MIN_PEAK = 15.0
+# HFD is measured in a window around the brightest star, not over the whole ROI — otherwise a wide
+# box full of faint stars inflates the diameter. Radius in pixels (covers a well-defocused star).
+_STAR_WINDOW_PX = 24
 
 
 def _crop(arr: np.ndarray, roi: ROI | None) -> np.ndarray:
@@ -46,18 +57,76 @@ def _laplacian_variance(a: np.ndarray) -> float:
     return float(lap.var())
 
 
-def analyze(jpeg: bytes, roi: ROI | None = None) -> dict:
-    """Decode a preview JPEG and return focus/histogram/clipping metrics."""
-    gray = np.asarray(Image.open(io.BytesIO(jpeg)).convert("L"), dtype=np.float32)
-    region = _crop(gray, roi)
+def _star_metrics(region: np.ndarray) -> dict:
+    """HFD + peak of the *brightest* star in ``region`` (background-subtracted, flux-weighted).
 
-    score = _laplacian_variance(region)
+    The brightest pixel locates the star; HFD is then measured only in a window around it, so a wide
+    ROI containing several faint stars doesn't inflate the diameter. HFD = 2·Σ(vᵢ·rᵢ) / Σ(vᵢ) — the
+    flux-weighted mean radius doubled, i.e. the diameter enclosing half the flux. Returns
+    ``found=False`` when nothing rises far enough above the background to trust.
+    """
+    bg = float(np.median(region))
+    if region.size == 0 or float(region.max()) - bg < _STAR_MIN_PEAK:
+        return {"found": False, "hfd": 0.0, "peak": round(max(0.0, float(region.max()) - bg), 1)}
+
+    # Window the brightest star out of the ROI before measuring.
+    py, px = np.unravel_index(int(np.argmax(region)), region.shape)
+    r = _STAR_WINDOW_PX
+    win = region[max(py - r, 0) : py + r + 1, max(px - r, 0) : px + r + 1]
+
+    signal = np.clip(win - bg, 0.0, None)
+    peak = float(signal.max())
+    total = float(signal.sum())
+    if peak < _STAR_MIN_PEAK or total <= 0.0:
+        return {"found": False, "hfd": 0.0, "peak": round(peak, 1)}
+
+    ys, xs = np.indices(signal.shape)
+    cx = float((xs * signal).sum() / total)
+    cy = float((ys * signal).sum() / total)
+    rad = np.sqrt((xs - cx) ** 2 + (ys - cy) ** 2)
+    hfd = 2.0 * float((signal * rad).sum() / total)
+    return {"found": True, "hfd": round(hfd, 2), "peak": round(peak, 1)}
+
+
+def analyze_luma(luma: np.ndarray, roi: ROI | None = None, mode: str = "scene") -> dict:
+    """Compute focus/histogram/clipping metrics from a grayscale (uint8) luma frame."""
+    region = _crop(luma.astype(np.float32), roi)
+
     counts, _ = np.histogram(region, bins=HIST_BINS, range=(0.0, 255.0))
     clipping = float((region >= 254.0).mean())
 
-    return {
-        "focus_score": round(score, 2),
+    result: dict = {
         "histogram": counts.astype(int).tolist(),
         "clipping": round(clipping, 4),
         "roi": list(roi) if roi else None,
+        "focus_mode": mode,
     }
+
+    if mode == "star":
+        star = _star_metrics(region)
+        # HFD is the focus number (minimize); peak is the secondary "maximize" cue.
+        result.update(
+            {
+                "focus_score": star["hfd"],
+                "focus_metric": "HFD",
+                "focus_direction": "lower",
+                "hfd": star["hfd"],
+                "peak": star["peak"],
+                "star_found": star["found"],
+            }
+        )
+    else:
+        result.update(
+            {
+                "focus_score": round(_laplacian_variance(region), 2),
+                "focus_metric": "Laplacian",
+                "focus_direction": "higher",
+            }
+        )
+    return result
+
+
+def analyze(jpeg: bytes, roi: ROI | None = None, mode: str = "scene") -> dict:
+    """Decode a preview JPEG to luma and analyze it — the fallback when no luma plane is available."""
+    luma = np.asarray(Image.open(io.BytesIO(jpeg)).convert("L"))
+    return analyze_luma(luma, roi, mode)

@@ -8,7 +8,10 @@ export type CameraProfile = {
   gain: Control
   supports_raw: boolean
   is_mock: boolean
+  supports_hw_zoom: boolean
 }
+
+export type FocusMode = 'scene' | 'star'
 
 export type PreviewMode = 'normal' | 'star'
 
@@ -79,6 +82,25 @@ export type Roi = [number, number, number, number] | null
 
 export async function setFocusRoi(roi: Roi): Promise<{ roi: Roi }> {
   const r = await fetch('/api/focus/roi', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ roi }),
+  })
+  return r.json()
+}
+
+export async function setFocusMode(mode: FocusMode): Promise<{ mode: FocusMode }> {
+  const r = await fetch('/api/focus/mode', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode }),
+  })
+  return r.json()
+}
+
+/** Ask the sensor for a true 1:1 crop into the ROI (hardware only; mock returns hw_zoom=false). */
+export async function setFocusZoom(roi: Roi): Promise<{ roi: Roi; hw_zoom: boolean }> {
+  const r = await fetch('/api/focus/zoom', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ roi }),

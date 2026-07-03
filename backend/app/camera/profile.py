@@ -29,6 +29,7 @@ class CameraProfile:
     gain: Control
     supports_raw: bool
     is_mock: bool = False
+    supports_hw_zoom: bool = False  # true 1:1 sensor crop (ScalerCrop) vs the mock's CSS zoom
 
     def as_dict(self) -> dict:
         return {
@@ -39,6 +40,7 @@ class CameraProfile:
             "gain": vars(self.gain),
             "supports_raw": self.supports_raw,
             "is_mock": self.is_mock,
+            "supports_hw_zoom": self.supports_hw_zoom,
         }
 
 
@@ -88,4 +90,5 @@ def build_profile(picam2: _Picamera2Like, resolution: tuple[int, int]) -> Camera
         gain=gain,
         supports_raw=bool(getattr(picam2, "sensor_modes", None)),
         is_mock=False,
+        supports_hw_zoom=True,  # libcamera ScalerCrop gives a real sensor-pixel zoom
     )

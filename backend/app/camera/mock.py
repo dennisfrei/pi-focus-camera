@@ -35,10 +35,14 @@ class MockCamera:
             supports_raw=True,
             is_mock=True,
         )
+        self.supports_hw_zoom = False  # no sensor to crop — the UI uses a CSS zoom instead
         self._controls: dict = {"ExposureTime": 20_000, "AnalogueGain": 1.0}
         self._broker: FrameBroker | None = None
         self._task: asyncio.Task | None = None
         self._running = False
+        # Latest synthesized luma plane (uncompressed) for the focus metric — the mock's stand-in
+        # for the picamera2 lores YUV plane, so analysis never touches a decoded JPEG.
+        self._luma: np.ndarray | None = None
 
         # A fixed field of faint background stars (x, y in [0,1], intrinsic brightness). Intrinsic
         # values are low so they only emerge as exposure/gain rise — the whole point of star
@@ -46,9 +50,7 @@ class MockCamera:
         rng = np.random.default_rng(42)
         self._stars = [
             (float(x), float(y), int(b))
-            for x, y, b in zip(
-                rng.random(60), rng.random(60), rng.integers(4, 30, 60), strict=True
-            )
+            for x, y, b in zip(rng.random(60), rng.random(60), rng.integers(4, 30, 60), strict=True)
         ]
         self._rng = np.random.default_rng(7)
 
@@ -70,6 +72,13 @@ class MockCamera:
 
     async def set_controls(self, values: dict) -> None:
         self._controls.update(values)
+
+    def get_luma(self) -> np.ndarray | None:
+        return self._luma
+
+    async def set_zoom(self, roi: tuple[float, float, float, float] | None) -> None:
+        # No sensor to crop; the frontend handles the mock's zoom in CSS.
+        return None
 
     def _interval(self) -> float:
         """Preview cadence, driven by the requested frame duration (so star mode visibly slows)."""
@@ -130,6 +139,9 @@ class MockCamera:
         draw.text(
             (12, 12), f"MockCamera  t={t:5.1f}s  exp={exp}us  gain={gain}", fill=(255, 80, 80)
         )
+
+        # Stash the uncompressed luma for the focus metric (before JPEG encoding loses precision).
+        self._luma = np.asarray(img.convert("L"))
 
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=80)

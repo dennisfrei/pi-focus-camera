@@ -337,9 +337,10 @@ exposure/gain sliders bounded by `CameraProfile`, **AE/AWB lock**, control valid
 slow-cadence UI), SQLite presets. (Brightness/contrast/sharpness + rotation/flip + resolution
 deferred — don't block M4.)
 
-**M4 — Focus assist v2 (on-sky).** **HFD/peak star metric** (night default) with mode toggle;
-analyze the **lores luma plane** instead of decoded JPEG; **`ScalerCrop` 1:1 zoom**. First real
-star-focus session happens here. *This is the minimum genuinely useful product on the sky.*
+**M4 — Focus assist v2 (on-sky). ✅ core done (mock-verified); on-Pi V-curve + 1:1 zoom open.**
+**HFD/peak star metric** (night default) with Scene/Star mode toggle; analyze the **lores luma
+plane** instead of decoded JPEG; **`ScalerCrop` 1:1 zoom**. First real star-focus session (the
+V-curve) happens on the Pi. *This is the minimum genuinely useful product on the sky.*
 
 **M5 — Capture.** Single still (JPEG + raw DNG), long-exposure with progress + preview-paused UX,
 gallery + download, SQLite metadata. (Productive deep-sky capture expects the HQ sensor — §1.)

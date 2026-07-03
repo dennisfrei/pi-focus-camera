@@ -1,11 +1,17 @@
 import { writable } from 'svelte/store'
-import type { CameraSettings } from './api'
+import type { CameraSettings, FocusMode } from './api'
 
 export type LiveState = {
   state: string
   camera: string
   mock: boolean
   focus_score: number
+  focus_mode: FocusMode
+  focus_metric: string
+  focus_direction: 'higher' | 'lower'
+  hfd: number | null
+  peak: number | null
+  star_found: boolean | null
   histogram: number[]
   clipping: number
   roi: [number, number, number, number] | null

@@ -1,12 +1,22 @@
 <script lang="ts">
-  import { setFocusRoi, type Roi } from '../lib/api'
+  import { onMount } from 'svelte'
+  import { getSystem, setFocusRoi, setFocusZoom, type Roi } from '../lib/api'
 
   // Live MJPEG preview with a focus ROI you can draw, a digital zoom into that ROI, and overlays.
+  // On real hardware the zoom is a true 1:1 sensor crop (ScalerCrop) through the same stream; on
+  // the mock there's no sensor to crop, so we CSS-scale the downscaled preview instead.
   let loaded = $state(false)
   let errored = $state(false)
   let showGrid = $state(false)
   let zoomed = $state(false)
+  let hwZoom = $state(false)
   let roi = $state<Roi>(null)
+
+  onMount(() => {
+    getSystem()
+      .then((s) => (hwZoom = s.profile.supports_hw_zoom))
+      .catch(() => {})
+  })
 
   let viewport: HTMLDivElement
   let dragging = $state(false)
@@ -28,12 +38,18 @@
   )
 
   // CSS transform that makes the ROI fill the viewport (top-left origin; uniform, no distortion).
+  // Skipped when the hardware does the crop for real — then the stream itself is already zoomed.
   let transform = $derived.by(() => {
-    if (!zoomed || !roi) return 'none'
+    if (!zoomed || !roi || hwZoom) return 'none'
     const [x0, y0, x1, y1] = roi
     const s = 1 / Math.max(x1 - x0, y1 - y0)
     return `scale(${s}) translate(${-x0 * 100}%, ${-y0 * 100}%)`
   })
+
+  async function toggleZoom() {
+    zoomed = !zoomed
+    if (hwZoom) await setFocusZoom(zoomed && roi ? roi : null)
+  }
 
   function norm(e: PointerEvent) {
     const r = viewport.getBoundingClientRect()
@@ -66,6 +82,7 @@
   }
 
   async function clearRoi() {
+    if (zoomed && hwZoom) await setFocusZoom(null)
     roi = null
     zoomed = false
     await setFocusRoi(null)
@@ -74,7 +91,9 @@
 
 <div class="tools">
   <button onclick={() => (showGrid = !showGrid)} class:active={showGrid}>Grid</button>
-  <button onclick={() => (zoomed = !zoomed)} disabled={!roi} class:active={zoomed}>Zoom</button>
+  <button onclick={toggleZoom} disabled={!roi} class:active={zoomed}>
+    Zoom{hwZoom ? ' 1:1' : ''}
+  </button>
   <button onclick={clearRoi} disabled={!roi}>Clear ROI</button>
   <span class="hint">{roi ? 'ROI set' : 'drag on the image to set a focus region'}</span>
 </div>

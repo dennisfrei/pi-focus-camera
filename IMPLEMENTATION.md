@@ -129,19 +129,26 @@ M5's mode-switching, and none are prerequisites for on-sky focus.
 
 ---
 
-## M4 — Focus assist v2 (on-sky)  ← *first genuinely useful release on stars*
+## M4 — Focus assist v2 (on-sky)  ✅ *core done (mock-verified); on-Pi V-curve + 1:1 zoom open*
 
-- **Star metric**: HFD (half-flux diameter, minimize) + peak intensity on the brightest star in
-  the ROI; mode toggle Scene (Laplacian) / Star (HFD) in the UI, Star = night default.
-- **Luma-plane analysis**: `Camera` Protocol grows a "latest luma frame" method; real driver
-  serves the picamera2 **lores YUV** plane (no JPEG decode, no quantization loss); mock
-  synthesizes it.
-- **`ScalerCrop` 1:1 zoom**: drag-ROI maps to a sensor-region crop through the existing stream —
-  real sensor pixels for critical focus; replaces the CSS zoom on hardware.
-- First real star-focus session: verify metric moves monotonically through focus on a real star.
+Shipped: `focus.py` gained `analyze_luma(luma, roi, mode)` with a **Star** metric — HFD
+(half-flux diameter, minimize) + peak on the brightest star, windowed around it so a wide ROI full
+of faint stars doesn't inflate the diameter — and a **Scene** metric (Laplacian, maximize); mode
+toggle in `FocusMeter` (Star = night default), the bar reads "fuller = better focus" either way and
+shows a "no star in ROI" state. The `Camera` protocol grew `get_luma()` (analysis runs on the
+**uncompressed luma plane**, never a decoded JPEG): the mock synthesizes it from the pre-JPEG image,
+the picamera2 driver serves the **lores YUV** Y plane. `ScalerCrop` **1:1 zoom**: `Camera.set_zoom`
++ `POST /api/focus/zoom` crop the sensor to the ROI (the driver maps normalized ROI →
+`ScalerCropMaximum` region); `LiveView` uses it when `profile.supports_hw_zoom`, else keeps the CSS
+zoom. Also `POST /api/focus/mode`; the `/api/live` WS carries `focus_mode`/`hfd`/`peak`/`star_found`.
 
 **Done when:** on the Pi, pointing at a star in star-preview mode, racking the focuser through
-focus produces a clean V-curve in HFD; 1:1 zoom shows actual sensor pixels.
+focus produces a clean V-curve in HFD; 1:1 zoom shows actual sensor pixels. ← *still open (needs
+the camera)*. Mock-verified now: synthetic tighter star → smaller HFD **and** higher peak (the
+guarantee the V-curve rests on), analysis runs on the luma plane, mode switch + zoom endpoints work.
+
+Hardware-untested (like the M1 driver): the picamera2 lores plane, `ScalerCrop` mapping, and the
+real V-curve — all develop against the mock but only prove out on the Pi.
 
 ---
 
