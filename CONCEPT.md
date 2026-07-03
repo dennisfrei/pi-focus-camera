@@ -350,7 +350,8 @@ download + delete, SQLite metadata. (Productive deep-sky capture expects the HQ 
 (cancelable N×exposure×interval over WS), system panel (real CPU temp/disk/uptime), PWA manifest +
 service worker (installable, offline app shell). AP SSID/client count deferred to M7.
 
-**M7 — Deployment.** AP + mDNS + systemd scripts, one-shot `install.sh`, README.
+**M7 — Deployment. ✅ scripts written (syntax-checked); on-Pi provision open.** AP + mDNS + systemd
+scripts, one-shot `install.sh` (Path B), README.
 
 Ship is useful for Moon/planets at **M2+M3**; genuinely useful on stars at **M4**; astro-complete
 at **M5**.

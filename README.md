@@ -7,8 +7,12 @@ adjust camera settings, and **capture** — fully offline.
 - **[CONCEPT.md](CONCEPT.md)** — architecture & the *what/why*
 - **[IMPLEMENTATION.md](IMPLEMENTATION.md)** — the step-by-step build plan (milestones M0–M7)
 
-> Status: **M2 — focus assist v1** (mock-verified). M1's real-camera driver is written but awaits
-> on-Pi verification. Next: M3 — manual camera controls & star-preview mode.
+> Status: **M0–M7 feature-complete, mock-verified.** Every milestone — live view, focus assist
+> (Scene + Star/HFD), manual controls & star preview, capture + gallery, intervalometer, system
+> panel, PWA, and deploy scripts — is built and tested against the mock camera. The parts that need
+> real hardware are written but **not yet verified on the Pi**: the picamera2 live view (M1), the
+> on-sky HFD V-curve + 1:1 `ScalerCrop` zoom (M4), long-exposure/DNG capture (M5), and the on-phone
+> PWA install over the access point (M6/M7).
 >
 > Honest scope: with the Camera Module V2 this is a **focus aid + lunar/planetary camera**;
 > productive deep-sky capture expects the HQ (IMX477) upgrade — see CONCEPT §1.
@@ -53,11 +57,32 @@ cd ../backend && uv run poe serve
 
 ## On the Raspberry Pi
 
-See [CONCEPT.md §7](CONCEPT.md) for the camera-stack install (the `picamera2` + Python 3.14
-caveat, Path A vs. B) and [`backend/requirements-pi.txt`](backend/requirements-pi.txt). Deploy
-scripts (WiFi AP, mDNS, systemd) live in `deploy/` and land in milestone M7.
+One-shot provisioning (Raspberry Pi OS Bookworm/Trixie, [`uv`](https://docs.astral.sh/uv/) installed):
+
+```bash
+git clone <this repo> ~/pi-focus-camera
+cd ~/pi-focus-camera
+bash deploy/install.sh
+```
+
+`install.sh` installs the camera stack (apt `python3-picamera2`), builds the backend venv and the
+frontend, and enables the **systemd service** (`astrocam.service`, port 8080) and **mDNS**
+(`http://astrocam.local:8080`). It uses deploy **Path B** from [CONCEPT.md §7](CONCEPT.md) — apt's
+`picamera2` on the system Python with a `--system-site-packages` uv venv (Path A, pip `picamera2` on
+uv's Python 3.14, is the alternative). Sanity-check the camera first: `rpicam-hello --list-cameras`.
+
+Then make the Pi its own access point — **run this from a local/serial session, it drops WiFi**:
+
+```bash
+AP_SSID=AstroCam AP_PASS='choose-8+chars' sudo -E bash deploy/setup-ap.sh
+```
+
+Join that network on the phone and open **http://astrocam.local:8080** (or `http://10.42.0.1:8080`).
+The `deploy/` scripts (`install.sh`, `setup-ap.sh`, `setup-mdns.sh`, `astrocam.service`) are
+idempotent and env-configurable.
 
 ## History
 
-The original 2020 Flask/`picamera` prototype lives in `src/` and git history; it is being fully
-replaced. See CONCEPT.md §2 for what changed and why.
+The original 2020 Flask/`picamera` prototype lives in `src/` and git history; it's being fully
+replaced (see CONCEPT.md §2). It's kept until the new backend is confirmed streaming from the real
+sensor on the Pi (milestone M1's hardware check), then removed.

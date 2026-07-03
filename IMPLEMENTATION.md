@@ -199,17 +199,19 @@ airplane-mode test needs the AP (M7)*. AP SSID/client count deferred to M7 (AP n
 
 ---
 
-## M7 — Deployment
+## M7 — Deployment  ✅ *scripts written (syntax-checked); on-Pi run is the open check*
 
-- `deploy/setup-ap.sh` — NetworkManager hotspot (SSID/pass), autoconnect, IP 10.42.0.1.
-- `deploy/setup-mdns.sh` — install/enable avahi → `astrocam.local`.
-- `deploy/astrocam.service` — systemd unit running the Litestar app on `:8080`, `Restart=on-failure`.
-- `deploy/install.sh` — one-shot: apt deps, `uv sync` (Path A, fall back B), frontend build+copy,
-  enable services.
-- README: hardware setup, flashing, first-boot, troubleshooting.
+Shipped in `deploy/`: `astrocam.service` (systemd unit, templated `__USER__`/`__APP_DIR__`, runs
+uvicorn on :8080, `Restart=on-failure`), `setup-ap.sh` (NetworkManager hotspot → 10.42.0.1,
+autoconnect, warns it drops WiFi), `setup-mdns.sh` (avahi + hostname `astrocam`), and `install.sh`
+(one-shot: apt camera stack, **Path B** venv `uv venv --system-site-packages` + `uv pip install -e .`,
+frontend `npm ci && build`, template + enable the service, mDNS — deliberately does *not* start the
+AP, which would disconnect the Pi mid-install). README updated with the full provisioning flow.
 
 **Done when:** fresh Pi + this repo → run `install.sh` → reboot → phone joins `AstroCam`, opens
-`http://astrocam.local`, full app works with no internet.
+`http://astrocam.local`, full app works with no internet. ← *needs a real Pi to run; scripts are
+`bash -n` clean and the unit templates correctly, but the end-to-end provision is unverified here.*
+Also folds the AP SSID/client count into the system panel (needs the AP up).
 
 ---
 
