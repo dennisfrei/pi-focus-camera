@@ -78,6 +78,40 @@ export async function deletePreset(name: string): Promise<Preset[]> {
   return (await r.json()).presets
 }
 
+export type Capture = {
+  id: number
+  created: number
+  settings: Record<string, number | boolean | string>
+  width: number
+  height: number
+  jpeg_path: string
+  raw_path: string | null
+  thumb_path: string
+  has_raw: boolean
+}
+
+export async function capture(opts: { raw?: boolean; exposure_us?: number }): Promise<Capture> {
+  const r = await fetch('/api/capture', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(opts),
+  })
+  return r.json()
+}
+
+export async function listCaptures(): Promise<Capture[]> {
+  const r = await fetch('/api/gallery')
+  return (await r.json()).captures
+}
+
+export async function deleteCapture(id: number): Promise<void> {
+  await fetch(`/api/gallery/${id}`, { method: 'DELETE' })
+}
+
+export const thumbUrl = (id: number) => `/api/gallery/${id}/thumb`
+export const imageUrl = (id: number) => `/api/gallery/${id}/image`
+export const rawUrl = (id: number) => `/api/gallery/${id}/raw`
+
 export type Roi = [number, number, number, number] | null
 
 export async function setFocusRoi(roi: Roi): Promise<{ roi: Roi }> {

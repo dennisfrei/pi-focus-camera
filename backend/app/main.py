@@ -21,12 +21,20 @@ from . import __version__
 from .camera.manager import CameraManager
 from .config import settings
 from .controllers.camera import get_settings, update_settings
+from .controllers.capture import capture
 from .controllers.focus import get_focus, set_focus_mode, set_focus_roi, set_focus_zoom
+from .controllers.gallery import (
+    delete_capture,
+    get_image,
+    get_raw,
+    get_thumb,
+    list_gallery,
+)
 from .controllers.live_ws import live
 from .controllers.presets import apply_preset, delete_preset, list_presets, save_preset
 from .controllers.stream import stream
 from .controllers.system import health, system_info
-from .storage import presets
+from .storage import captures, presets
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -55,6 +63,7 @@ openapi_config = OpenAPIConfig(
 @asynccontextmanager
 async def lifespan(app: Litestar) -> AsyncIterator[None]:
     await presets.init_db(settings.db_path)
+    await captures.init_db(settings.db_path)
     manager = CameraManager(settings)
     await manager.start()
     app.state.manager = manager
@@ -82,6 +91,12 @@ app = Litestar(
         set_focus_roi,
         set_focus_mode,
         set_focus_zoom,
+        capture,
+        list_gallery,
+        get_thumb,
+        get_image,
+        get_raw,
+        delete_capture,
         # Vendored Swagger UI assets (offline docs).
         create_static_files_router(path="/vendor", directories=[VENDOR_DIR]),
         # Serves the built SPA at "/"; API routes above take precedence.

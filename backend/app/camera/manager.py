@@ -1,7 +1,8 @@
 """The single owner of the sensor.
 
-Holds the active driver, the frame broker, and a lock that will serialize capture/mode-switch
-operations against the preview (M4). For M0 it simply starts the mock preview.
+Holds the active driver, the frame broker, the focus-analysis loop, the validated camera settings,
+and a lock that serializes captures/mode-switches against the preview (one sensor can't stream and
+integrate a long exposure at once).
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ import logging
 import anyio
 
 from ..config import Settings
+from ..storage import captures
 from . import focus, settings as camsettings
 from .base import Camera
 from .mock import MockCamera
@@ -45,7 +47,7 @@ class CameraManager:
         self.db_path = settings.db_path
         self.camera: Camera = select_camera(settings)
         self.broker = FrameBroker()
-        self.lock = asyncio.Lock()  # serializes capture / mode switches (M4)
+        self.lock = asyncio.Lock()  # serializes captures / mode switches against the preview
         self.started = False
 
         # Focus assist. Star mode (HFD) is the night default — the app's on-sky reason to exist.
@@ -57,6 +59,16 @@ class CameraManager:
 
         # Camera controls (validated, sensor-agnostic)
         self.settings = CameraSettings()
+
+        # Capture (M5). A single still or long exposure; progress is pushed over the WS.
+        self.captures_dir = settings.captures_dir
+        self.capture_state: dict = {
+            "active": False,
+            "progress": 0.0,
+            "remaining_s": 0.0,
+            "exposure_us": 0,
+            "raw": False,
+        }
 
     @property
     def profile(self) -> CameraProfile:
@@ -74,6 +86,53 @@ class CameraManager:
     async def set_zoom(self, roi: focus.ROI | None) -> None:
         """Ask the driver for a true 1:1 sensor crop (no-op on the mock, which zooms in CSS)."""
         await self.camera.set_zoom(roi)
+
+    async def capture(self, raw: bool = False, exposure_us: int | None = None) -> dict:
+        """Capture a still (JPEG + optional raw), store it, and return its gallery record.
+
+        The lock serializes captures against each other and against mode switches. For a long
+        exposure the preview is paused for the duration; a time-based progress countdown is pushed
+        over the WS from ``capture_state`` while the (blocking) capture runs.
+        """
+        async with self.lock:
+            exp = int(exposure_us) if exposure_us else int(self.settings.exposure_us)
+            gain = float(self.settings.gain)
+            snapshot = {**self.settings.as_dict(), "exposure_us": exp, "raw": raw}
+            self.capture_state = {
+                "active": True,
+                "progress": 0.0,
+                "remaining_s": exp / 1_000_000,
+                "exposure_us": exp,
+                "raw": raw,
+            }
+            progress = asyncio.create_task(self._run_progress(exp))
+            try:
+                result = await self.camera.capture_still(exp, gain, raw)
+            finally:
+                progress.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await progress
+                self.capture_state = {**self.capture_state, "active": False, "remaining_s": 0.0}
+
+            row = await anyio.to_thread.run_sync(
+                captures.write_files, self.captures_dir, result, snapshot
+            )
+            capture_id = await captures.add_capture(self.db_path, row)
+            logger.info(
+                "Captured #%s (%dx%d, raw=%s)", capture_id, result.width, result.height, raw
+            )
+            return await captures.get_capture(self.db_path, capture_id)  # type: ignore[return-value]
+
+    async def _run_progress(self, exposure_us: int) -> None:
+        """Advance ``capture_state`` from a time estimate while the capture blocks."""
+        loop = asyncio.get_running_loop()
+        dur = max(exposure_us / 1_000_000, 0.001)
+        start = loop.time()
+        while True:
+            elapsed = loop.time() - start
+            self.capture_state["progress"] = min(0.99, elapsed / dur)
+            self.capture_state["remaining_s"] = max(0.0, dur - elapsed)
+            await asyncio.sleep(0.1)
 
     async def start(self) -> None:
         await self.camera.start(self.broker)

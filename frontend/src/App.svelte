@@ -4,6 +4,8 @@
   import FocusMeter from './components/FocusMeter.svelte'
   import Histogram from './components/Histogram.svelte'
   import Controls from './components/Controls.svelte'
+  import CaptureBar from './components/CaptureBar.svelte'
+  import Gallery from './components/Gallery.svelte'
   import Help from './components/Help.svelte'
   import { live, connected, connectLive } from './lib/live'
   import { getSystem, type SystemInfo } from './lib/api'
@@ -46,7 +48,11 @@
     <Histogram />
   </div>
 
+  <CaptureBar />
+
   <Controls />
+
+  <Gallery />
 
   <section class="status">
     <div class="row">

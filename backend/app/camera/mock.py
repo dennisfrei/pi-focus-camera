@@ -16,6 +16,7 @@ import anyio
 import numpy as np
 from PIL import Image, ImageDraw
 
+from .base import CaptureResult
 from .profile import CameraProfile, Control
 from .stream import FrameBroker
 
@@ -102,9 +103,9 @@ class MockCamera:
                 self._broker.publish(jpeg)
             await asyncio.sleep(self._interval())
 
-    def _render(self, t: float) -> bytes:
+    def _draw_scene(self, t: float, scale: float) -> Image.Image:
+        """The star field at a given brightness ``scale`` — shared by preview and capture."""
         w, h = self._w, self._h
-        scale = self._brightness_scale()
 
         # Sky background: brightens slowly with exposure; per-frame shot noise keeps the histogram
         # gently shifting. Sub-linear so long exposures reveal stars before the sky washes out.
@@ -133,7 +134,11 @@ class MockCamera:
         # Faint crosshair for focus framing.
         draw.line([(w // 2, 0), (w // 2, h)], fill=(60, 0, 0), width=1)
         draw.line([(0, h // 2), (w, h // 2)], fill=(60, 0, 0), width=1)
+        return img
 
+    def _render(self, t: float) -> bytes:
+        img = self._draw_scene(t, self._brightness_scale())
+        draw = ImageDraw.Draw(img)
         exp = self._controls.get("ExposureTime", 0)
         gain = self._controls.get("AnalogueGain", 1.0)
         draw.text(
@@ -146,3 +151,21 @@ class MockCamera:
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=80)
         return buf.getvalue()
+
+    async def capture_still(self, exposure_us: int, gain: float, raw: bool) -> CaptureResult:
+        # Simulate the sensor integrating (capped so short-exposure tests stay fast) — this is what
+        # gives the long-exposure countdown something real to count down. No sensor to pause here.
+        await asyncio.sleep(min(exposure_us / 1_000_000, 8.0))
+        scale = (exposure_us / 20_000.0) * gain
+        img = await anyio.to_thread.run_sync(self._draw_scene, time.monotonic(), scale)
+
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=92)
+        raw_bytes = None
+        if raw:
+            rbuf = io.BytesIO()
+            img.save(rbuf, format="PNG")  # lossless stand-in for a real sensor DNG
+            raw_bytes = rbuf.getvalue()
+        return CaptureResult(
+            jpeg=buf.getvalue(), width=self._w, height=self._h, raw=raw_bytes, raw_ext="png"
+        )

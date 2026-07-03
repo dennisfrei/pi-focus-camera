@@ -152,19 +152,25 @@ real V-curve — all develop against the mock but only prove out on the Pi.
 
 ---
 
-## M5 — Capture  ← *astro-complete*
+## M5 — Capture  ✅ *core done (mock-verified); on-Pi long-exposure + DNG open*
 
-- `app/camera/manager.py` — capture path with **mode switching + async lock**; long-exposure
-  reconfigures the still config, captures, restores preview; short snapshot uses preview+still config.
-- `capture_still` → JPEG (+ optional **raw DNG**); save to captures dir; row in SQLite (ts,
-  settings, thumbnail path).
-- `app/controllers/capture.py` — `POST /api/capture` (returns id; progress over WS for long exp).
-- `app/controllers/gallery.py` — list/thumbnail/download/delete.
-- Frontend `CaptureBar.svelte` (shutter + long-exp countdown, "preview paused" state) and
-  `Gallery.svelte` (grid, full view, download to phone, delete).
+Shipped: `Camera.capture_still(exposure_us, gain, raw) -> CaptureResult` (JPEG + optional raw).
+`CameraManager.capture()` runs under the **async lock** (serializes captures / mode switches),
+snapshots the settings, and pushes a **time-based progress countdown** over the WS
+(`capture_state`: active/progress/remaining_s) while the blocking capture runs. Storage
+(`app/storage/captures.py`) writes the JPEG, a **downscaled thumbnail**, and the raw (DNG on the Pi,
+PNG stand-in on the mock — there's no real sensor raw off-device), with a SQLite row (ts, settings,
+dimensions, basenames). `POST /api/capture`; `app/controllers/gallery.py` = list / thumb / image /
+raw / delete (delete also unlinks files). Frontend `CaptureBar.svelte` (shutter labelled with the
+current exposure, raw toggle, long-exp countdown + "preview paused" state) and `Gallery.svelte`
+(thumbnail grid, full-view modal, download JPEG/raw, delete). The picamera2 driver's still path
+(stop preview → still config → capture request → JPEG + `save_dng` → restore preview) is written but
+**hardware-untested**.
 
 **Done when:** capture a still on the Pi, see it in the gallery, download it to the phone; a long
-exposure shows a countdown and pauses preview, then resumes.
+exposure shows a countdown and pauses preview, then resumes. ← *on-Pi part still open*.
+Mock-verified: capture writes a valid JPEG + downscaled thumb + raw, gallery serves/downloads/deletes
+them, and a 0.5 s exposure drives `capture_state` active→progress→clear.
 
 Scope note: with the V2 this is lunar/planetary + bright-target capture; productive deep-sky subs
 expect the HQ sensor (CONCEPT §1). A planetary **video-burst mode** is deliberately out of scope

@@ -1,6 +1,14 @@
 import { writable } from 'svelte/store'
 import type { CameraSettings, FocusMode } from './api'
 
+export type CaptureState = {
+  active: boolean
+  progress: number
+  remaining_s: number
+  exposure_us: number
+  raw: boolean
+}
+
 export type LiveState = {
   state: string
   camera: string
@@ -16,6 +24,7 @@ export type LiveState = {
   clipping: number
   roi: [number, number, number, number] | null
   settings: CameraSettings
+  capture: CaptureState
 } | null
 
 export const live = writable<LiveState>(null)

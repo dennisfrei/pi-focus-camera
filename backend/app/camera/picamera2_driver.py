@@ -15,6 +15,9 @@ from __future__ import annotations
 import asyncio
 import io
 import logging
+import os
+import tempfile
+from pathlib import Path
 
 import anyio
 import numpy as np
@@ -22,6 +25,7 @@ from picamera2 import Picamera2
 from picamera2.encoders import JpegEncoder
 from picamera2.outputs import FileOutput
 
+from .base import CaptureResult
 from .profile import CameraProfile, build_profile
 from .stream import FrameBroker
 
@@ -129,3 +133,56 @@ class Picamera2Camera:
             crop = (x + int(x0 * full_w), y + int(y0 * full_h), cw, ch)
         self._picam2.set_controls({"ScalerCrop": crop})
         self._controls["ScalerCrop"] = crop
+
+    async def capture_still(self, exposure_us: int, gain: float, raw: bool) -> CaptureResult:
+        return await anyio.to_thread.run_sync(self._capture_sync, exposure_us, gain, raw)
+
+    def _capture_sync(self, exposure_us: int, gain: float, raw: bool) -> CaptureResult:
+        """Pause preview, switch to a full-res still config, capture, then restore preview.
+
+        The single sensor can't stream preview and integrate a long exposure at once, so the preview
+        is genuinely paused for the duration (CONCEPT §4). Runs on a worker thread — it blocks for
+        roughly the exposure time.
+        """
+        was_recording = self._recording
+        if was_recording:
+            self._picam2.stop_recording()
+            self._recording = False
+        try:
+            still = self._picam2.create_still_configuration(
+                raw={} if raw else None,
+                controls={
+                    "ExposureTime": int(exposure_us),
+                    "AnalogueGain": float(gain),
+                    "AeEnable": False,
+                },
+            )
+            self._picam2.configure(still)
+            self._picam2.start()
+            request = self._picam2.capture_request()
+            try:
+                image = request.make_image("main").convert("RGB")
+                buf = io.BytesIO()
+                image.save(buf, format="JPEG", quality=92)
+                width, height = image.size
+                raw_bytes = self._dng_bytes(request) if raw else None
+            finally:
+                request.release()
+            self._picam2.stop()
+        finally:
+            if was_recording:
+                self._start_sync()  # bring the preview stream back up
+        return CaptureResult(
+            jpeg=buf.getvalue(), width=width, height=height, raw=raw_bytes, raw_ext="dng"
+        )
+
+    @staticmethod
+    def _dng_bytes(request) -> bytes:
+        """Serialize the sensor raw as DNG. picamera2 writes to a path, so round-trip via a temp."""
+        fd, name = tempfile.mkstemp(suffix=".dng")
+        os.close(fd)
+        try:
+            request.save_dng(name)
+            return Path(name).read_bytes()
+        finally:
+            os.unlink(name)

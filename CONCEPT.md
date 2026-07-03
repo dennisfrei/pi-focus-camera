@@ -342,8 +342,9 @@ deferred — don't block M4.)
 plane** instead of decoded JPEG; **`ScalerCrop` 1:1 zoom**. First real star-focus session (the
 V-curve) happens on the Pi. *This is the minimum genuinely useful product on the sky.*
 
-**M5 — Capture.** Single still (JPEG + raw DNG), long-exposure with progress + preview-paused UX,
-gallery + download, SQLite metadata. (Productive deep-sky capture expects the HQ sensor — §1.)
+**M5 — Capture. ✅ core done (mock-verified); on-Pi long-exposure + DNG open.** Single still
+(JPEG + raw DNG), long-exposure with progress countdown + preview-paused UX, gallery + thumbnails +
+download + delete, SQLite metadata. (Productive deep-sky capture expects the HQ sensor — §1.)
 
 **M6 — Sequences + system.** Intervalometer, system panel, PWA/offline polish.
 
