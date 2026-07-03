@@ -346,7 +346,9 @@ V-curve) happens on the Pi. *This is the minimum genuinely useful product on the
 (JPEG + raw DNG), long-exposure with progress countdown + preview-paused UX, gallery + thumbnails +
 download + delete, SQLite metadata. (Productive deep-sky capture expects the HQ sensor — §1.)
 
-**M6 — Sequences + system.** Intervalometer, system panel, PWA/offline polish.
+**M6 — Sequences + system. ✅ done (mock-verified); on-phone install open.** Intervalometer
+(cancelable N×exposure×interval over WS), system panel (real CPU temp/disk/uptime), PWA manifest +
+service worker (installable, offline app shell). AP SSID/client count deferred to M7.
 
 **M7 — Deployment.** AP + mDNS + systemd scripts, one-shot `install.sh`, README.
 

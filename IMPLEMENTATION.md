@@ -178,14 +178,24 @@ here (CONCEPT §9).
 
 ---
 
-## M6 — Sequences & system panel
+## M6 — Sequences & system panel  ✅ *done (mock-verified); AP-client count + on-phone install open*
 
-- Intervalometer: N frames × exposure × interval; sequence state/progress over WS; cancelable.
-- `app/controllers/system.py` — real CPU temp, disk free, uptime, AP SSID/clients, camera model.
-- Frontend `SystemPanel.svelte`; PWA manifest + service worker (installable, offline).
+Shipped: **intervalometer** — `CameraManager.start_sequence(count, interval_s, exposure_us?, raw)`
+runs N frames as a cancelable background task (each frame goes through `capture()`, so it reuses the
+lock + gallery + progress); `sequence_state` (active/count/done/index) is pushed over the WS;
+`POST /api/sequence` (409/400 if one's running) and `POST /api/sequence/cancel`. **System metrics**:
+`app/controllers/system.py` reads real **CPU temp** (`/sys/class/thermal`), **uptime** (`/proc/uptime`),
+and **disk** (`shutil.disk_usage` of the captures dir), each degrading to `None` off-Pi. Frontend
+`SequenceBar.svelte` (frames/interval/raw + live progress + cancel) and `SystemPanel.svelte`
+(camera/link/resolution + temp/disk/uptime, polled). **PWA**: `public/manifest.webmanifest` +
+`public/sw.js` (cache-first app shell, never intercepts `/api` or the stream) registered in
+`main.ts`, with manifest/theme-color/apple-touch meta in `index.html` — installable and the shell
+loads with no external fetches (all self-hosted, offline-safe).
 
 **Done when:** run a 5-frame sequence to completion; system panel shows real temp/disk; app is
-installable on the phone and works with the phone in airplane mode (on the Pi's AP).
+installable on the phone and works with the phone in airplane mode (on the Pi's AP). ← *sequence +
+real temp/disk verified (this dev box is itself a Pi: 70 °C, 40 GB free); on-phone install /
+airplane-mode test needs the AP (M7)*. AP SSID/client count deferred to M7 (AP not set up yet).
 
 ---
 

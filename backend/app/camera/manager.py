@@ -70,6 +70,18 @@ class CameraManager:
             "raw": False,
         }
 
+        # Sequence / intervalometer (M6). N frames × exposure × interval; cancelable.
+        self.sequence_state: dict = {
+            "active": False,
+            "count": 0,
+            "done": 0,
+            "index": 0,
+            "interval_s": 0.0,
+            "exposure_us": 0,
+            "raw": False,
+        }
+        self._sequence_task: asyncio.Task | None = None
+
     @property
     def profile(self) -> CameraProfile:
         return self.camera.profile
@@ -134,6 +146,47 @@ class CameraManager:
             self.capture_state["remaining_s"] = max(0.0, dur - elapsed)
             await asyncio.sleep(0.1)
 
+    def start_sequence(
+        self, count: int, interval_s: float, exposure_us: int | None = None, raw: bool = False
+    ) -> dict:
+        """Kick off an N-frame intervalometer run in the background; returns the initial state."""
+        if self.sequence_state["active"]:
+            raise RuntimeError("a sequence is already running")
+        exp = int(exposure_us) if exposure_us else int(self.settings.exposure_us)
+        self.sequence_state = {
+            "active": True,
+            "count": count,
+            "done": 0,
+            "index": 0,
+            "interval_s": interval_s,
+            "exposure_us": exp,
+            "raw": raw,
+        }
+        self._sequence_task = asyncio.create_task(self._run_sequence(count, interval_s, exp, raw))
+        return dict(self.sequence_state)
+
+    async def _run_sequence(
+        self, count: int, interval_s: float, exposure_us: int, raw: bool
+    ) -> None:
+        try:
+            for i in range(count):
+                self.sequence_state = {**self.sequence_state, "index": i + 1}
+                await self.capture(raw=raw, exposure_us=exposure_us)
+                self.sequence_state = {**self.sequence_state, "done": i + 1}
+                if i < count - 1:
+                    await asyncio.sleep(interval_s)
+        except asyncio.CancelledError:
+            pass  # cancel_sequence stops it between/within frames
+        finally:
+            self.sequence_state = {**self.sequence_state, "active": False}
+
+    def cancel_sequence(self) -> bool:
+        """Cancel a running sequence; returns whether one was actually running."""
+        if self._sequence_task is not None and not self._sequence_task.done():
+            self._sequence_task.cancel()
+            return True
+        return False
+
     async def start(self) -> None:
         await self.camera.start(self.broker)
         self.started = True
@@ -153,6 +206,11 @@ class CameraManager:
         return merged
 
     async def stop(self) -> None:
+        if self._sequence_task is not None:
+            self._sequence_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._sequence_task
+            self._sequence_task = None
         if self._analyze_task is not None:
             self._analyze_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):

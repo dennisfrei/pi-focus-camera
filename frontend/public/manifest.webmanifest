@@ -1,0 +1,19 @@
+{
+  "name": "Prime Focus Camera",
+  "short_name": "AstroCam",
+  "description": "Focus and capture for a Raspberry Pi prime-focus astro camera.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -9,6 +9,16 @@ export type CaptureState = {
   raw: boolean
 }
 
+export type SequenceState = {
+  active: boolean
+  count: number
+  done: number
+  index: number
+  interval_s: number
+  exposure_us: number
+  raw: boolean
+}
+
 export type LiveState = {
   state: string
   camera: string
@@ -25,6 +35,7 @@ export type LiveState = {
   roi: [number, number, number, number] | null
   settings: CameraSettings
   capture: CaptureState
+  sequence: SequenceState
 } | null
 
 export const live = writable<LiveState>(null)

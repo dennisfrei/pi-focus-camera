@@ -43,6 +43,7 @@ async def live(socket: WebSocket) -> None:
                     "roi": metrics.get("roi"),
                     "settings": manager.settings.as_dict(),
                     "capture": manager.capture_state,
+                    "sequence": manager.sequence_state,
                 }
             )
             await asyncio.sleep(interval)

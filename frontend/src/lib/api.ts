@@ -24,16 +24,40 @@ export type CameraSettings = {
   preview_mode: PreviewMode
 }
 
+export type DiskUsage = { total: number; used: number; free: number }
+
 export type SystemInfo = {
   camera: string
   mock: boolean
   state: string
   profile: CameraProfile
+  cpu_temp_c: number | null
+  uptime_s: number | null
+  disk: DiskUsage
 }
 
 export async function getSystem(): Promise<SystemInfo> {
   const r = await fetch('/api/system')
   return r.json()
+}
+
+export async function startSequence(opts: {
+  count: number
+  interval_s: number
+  exposure_us?: number
+  raw?: boolean
+}): Promise<unknown> {
+  const r = await fetch('/api/sequence', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(opts),
+  })
+  if (!r.ok) throw new Error('sequence rejected')
+  return r.json()
+}
+
+export async function cancelSequence(): Promise<void> {
+  await fetch('/api/sequence/cancel', { method: 'POST' })
 }
 
 export async function getSettings(): Promise<{ profile: CameraProfile; settings: CameraSettings }> {

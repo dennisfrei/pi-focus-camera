@@ -32,6 +32,7 @@ from .controllers.gallery import (
 )
 from .controllers.live_ws import live
 from .controllers.presets import apply_preset, delete_preset, list_presets, save_preset
+from .controllers.sequence import cancel_sequence, start_sequence
 from .controllers.stream import stream
 from .controllers.system import health, system_info
 from .storage import captures, presets
@@ -92,6 +93,8 @@ app = Litestar(
         set_focus_mode,
         set_focus_zoom,
         capture,
+        start_sequence,
+        cancel_sequence,
         list_gallery,
         get_thumb,
         get_image,
