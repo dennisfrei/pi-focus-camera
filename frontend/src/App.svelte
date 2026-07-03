@@ -4,11 +4,13 @@
   import FocusMeter from './components/FocusMeter.svelte'
   import Histogram from './components/Histogram.svelte'
   import Controls from './components/Controls.svelte'
+  import Help from './components/Help.svelte'
   import { live, connected, connectLive } from './lib/live'
   import { getSystem, type SystemInfo } from './lib/api'
   import { nightMode } from './lib/stores'
 
   let system = $state<SystemInfo | null>(null)
+  let helpOpen = $state(false)
 
   onMount(() => {
     connectLive()
@@ -26,10 +28,15 @@
     <span class="dot" class:on={$connected}></span>
     <h1>Prime Focus Camera</h1>
   </div>
-  <button class="toggle" onclick={() => nightMode.update((v) => !v)}>
-    {$nightMode ? '🔴 Night' : '⚪ Normal'}
-  </button>
+  <div class="actions">
+    <button class="toggle" onclick={() => (helpOpen = true)} aria-label="Help">? Help</button>
+    <button class="toggle" onclick={() => nightMode.update((v) => !v)}>
+      {$nightMode ? '🔴 Night' : '⚪ Normal'}
+    </button>
+  </div>
 </header>
+
+<Help bind:open={helpOpen} />
 
 <main>
   <LiveView />
@@ -97,6 +104,10 @@
   .dot.on {
     background: var(--accent);
     box-shadow: 0 0 8px var(--accent);
+  }
+  .actions {
+    display: flex;
+    gap: 0.4rem;
   }
   .toggle {
     background: transparent;
