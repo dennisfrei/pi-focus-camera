@@ -13,10 +13,11 @@ import logging
 import anyio
 
 from ..config import Settings
-from . import focus
+from . import focus, settings as camsettings
 from .base import Camera
 from .mock import MockCamera
 from .profile import CameraProfile
+from .settings import CameraSettings
 from .stream import FrameBroker
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,7 @@ def select_camera(settings: Settings) -> Camera:
 class CameraManager:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
+        self.db_path = settings.db_path
         self.camera: Camera = select_camera(settings)
         self.broker = FrameBroker()
         self.lock = asyncio.Lock()  # serializes capture / mode switches (M4)
@@ -52,6 +54,9 @@ class CameraManager:
         self.metrics: dict = {"focus_score": 0.0, "histogram": [], "clipping": 0.0, "roi": None}
         self._analyze_task: asyncio.Task | None = None
 
+        # Camera controls (validated, sensor-agnostic)
+        self.settings = CameraSettings()
+
     @property
     def profile(self) -> CameraProfile:
         return self.camera.profile
@@ -62,8 +67,20 @@ class CameraManager:
     async def start(self) -> None:
         await self.camera.start(self.broker)
         self.started = True
+        # Push the initial settings so the driver has a defined baseline (frame duration, AE, ...).
+        self.settings = camsettings.clamp(self.settings, self.profile)
+        await self.camera.set_controls(camsettings.to_controls(self.settings))
         self._analyze_task = asyncio.create_task(self._analyze_loop())
         logger.info("Camera started: %s", self.profile.model)
+
+    async def apply_settings(self, update: dict) -> CameraSettings:
+        """Validate a partial settings update against the sensor and apply it to the driver."""
+        merged = camsettings.merge(self.settings, update)
+        merged = camsettings.clamp(merged, self.profile)
+        await self.camera.set_controls(camsettings.to_controls(merged))
+        self.settings = merged
+        logger.info("Applied settings: %s", merged.as_dict())
+        return merged
 
     async def stop(self) -> None:
         if self._analyze_task is not None:

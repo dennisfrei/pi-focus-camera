@@ -3,6 +3,7 @@
   import LiveView from './components/LiveView.svelte'
   import FocusMeter from './components/FocusMeter.svelte'
   import Histogram from './components/Histogram.svelte'
+  import Controls from './components/Controls.svelte'
   import { live, connected, connectLive } from './lib/live'
   import { getSystem, type SystemInfo } from './lib/api'
   import { nightMode } from './lib/stores'
@@ -37,6 +38,8 @@
     <FocusMeter />
     <Histogram />
   </div>
+
+  <Controls />
 
   <section class="status">
     <div class="row">

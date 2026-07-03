@@ -35,6 +35,7 @@ async def live(socket: WebSocket) -> None:
                     "histogram": metrics.get("histogram", []),
                     "clipping": metrics.get("clipping", 0.0),
                     "roi": metrics.get("roi"),
+                    "settings": manager.settings.as_dict(),
                 }
             )
             await asyncio.sleep(interval)

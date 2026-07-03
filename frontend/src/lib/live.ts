@@ -1,4 +1,5 @@
 import { writable } from 'svelte/store'
+import type { CameraSettings } from './api'
 
 export type LiveState = {
   state: string
@@ -8,6 +9,7 @@ export type LiveState = {
   histogram: number[]
   clipping: number
   roi: [number, number, number, number] | null
+  settings: CameraSettings
 } | null
 
 export const live = writable<LiveState>(null)

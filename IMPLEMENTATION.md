@@ -104,23 +104,28 @@ plane), zoom is CSS on the downscaled preview (not 1:1), Laplacian only (no star
 
 ---
 
-## M3 — Camera controls & star preview  ← *next; prerequisite for on-sky focus*
+## M3 — Camera controls & star preview  ✅ *core done (mock-verified); prerequisite for on-sky focus*
 
-- `app/controllers/camera.py` — `PATCH /api/camera/settings` **validated against
-  `CameraProfile`** (typed model, clamp/reject unknown keys — no raw dict into picamera2),
-  exposure, gain, AWB off, brightness/contrast/sharpness, rotation/flip.
-- **AE/AWB lock**: explicit auto vs manual mode; manual = `AeEnable=False` + fixed
-  `ExposureTime`/`AnalogueGain`. The UI must show which mode is active.
-- **Star-preview mode**: long `FrameDurationLimits` (0.5–2 s) + raised gain so stars are visible
-  at all (CONCEPT §4); preview fps drops to 0.5–2 — FocusMeter/Histogram must handle the slow
-  cadence (no fake-smooth animation, show "exposure…" state between frames).
-- Presets: SQLite table + `GET/POST/DELETE /api/camera/presets` (e.g. "Moon", "Star focus").
-- Frontend `Controls.svelte` — sliders bounded by the profile; mode toggle; preset save/load.
-- Mock support: honor `ExposureTime`/`AnalogueGain` in the rendered image (brightness/noise) so
-  controls are testable without hardware.
+Shipped: `app/camera/settings.py` (`CameraSettings` dataclass + `clamp`/`merge`/`to_controls` —
+the sensor-agnostic model the API speaks; unknown keys dropped, exposure/gain clamped to the
+`CameraProfile`, no raw dict reaches the driver). `CameraManager.apply_settings` validates a partial
+update and pushes libcamera controls to the driver; the baseline is applied on start. Endpoints:
+`GET`/`PATCH /api/camera/settings` (high-level settings), `GET/POST /api/camera/presets`,
+`POST /api/camera/presets/{name}/apply`, `DELETE /api/camera/presets/{name}` (SQLite via
+`app/storage/presets.py`). The `/api/live` WS now broadcasts current settings. Frontend
+`Controls.svelte`: normal/star mode toggle, AE/AWB checkboxes, log-scaled exposure + gain sliders
+bounded by the profile (disabled under AE), preset save/apply/delete. Mock honors
+`ExposureTime`/`AnalogueGain` (frame brightens, faint stars emerge) and `FrameDurationLimits`
+(star mode crawls to ~1 fps) so it's all testable without hardware.
 
 **Done when:** exposure/gain changes visibly alter the live view (mock and Pi); AE lock persists;
 star-preview mode streams at ~1 fps with the UI degrading gracefully; presets survive restart.
+← *all verified on the mock (brightness 4.6→38.5, star pixels 841→5653, star interval 1.5 s,
+presets survive a lifespan restart); the Pi run is the only part still open.*
+
+Deferred (same pattern as M2, none block M4): brightness/contrast/sharpness trims, rotation/flip,
+and resolution switching — the last two need configure-time plumbing that pairs naturally with
+M5's mode-switching, and none are prerequisites for on-sky focus.
 
 ---
 

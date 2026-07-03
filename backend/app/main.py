@@ -23,8 +23,10 @@ from .config import settings
 from .controllers.camera import get_settings, update_settings
 from .controllers.focus import get_focus, set_focus_roi
 from .controllers.live_ws import live
+from .controllers.presets import apply_preset, delete_preset, list_presets, save_preset
 from .controllers.stream import stream
 from .controllers.system import health, system_info
+from .storage import presets
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -52,6 +54,7 @@ openapi_config = OpenAPIConfig(
 
 @asynccontextmanager
 async def lifespan(app: Litestar) -> AsyncIterator[None]:
+    await presets.init_db(settings.db_path)
     manager = CameraManager(settings)
     await manager.start()
     app.state.manager = manager
@@ -71,6 +74,10 @@ app = Litestar(
         system_info,
         get_settings,
         update_settings,
+        list_presets,
+        save_preset,
+        apply_preset,
+        delete_preset,
         get_focus,
         set_focus_roi,
         # Vendored Swagger UI assets (offline docs).

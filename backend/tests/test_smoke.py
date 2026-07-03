@@ -23,9 +23,9 @@ def test_system_reports_mock() -> None:
 
 def test_settings_roundtrip() -> None:
     with TestClient(app=app) as client:
-        client.patch("/api/camera/settings", json={"AnalogueGain": 4.0})
-        controls = client.get("/api/camera/settings").json()["controls"]
-        assert controls["AnalogueGain"] == 4.0
+        client.patch("/api/camera/settings", json={"gain": 4.0})
+        settings = client.get("/api/camera/settings").json()["settings"]
+        assert settings["gain"] == 4.0
 
 
 def test_openapi_schema() -> None:

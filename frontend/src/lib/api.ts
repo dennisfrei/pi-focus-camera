@@ -10,6 +10,17 @@ export type CameraProfile = {
   is_mock: boolean
 }
 
+export type PreviewMode = 'normal' | 'star'
+
+/** High-level, sensor-agnostic camera settings — mirrors the backend CameraSettings dataclass. */
+export type CameraSettings = {
+  ae_enable: boolean
+  awb_enable: boolean
+  exposure_us: number
+  gain: number
+  preview_mode: PreviewMode
+}
+
 export type SystemInfo = {
   camera: string
   mock: boolean
@@ -22,18 +33,46 @@ export async function getSystem(): Promise<SystemInfo> {
   return r.json()
 }
 
-export async function getSettings(): Promise<{ profile: CameraProfile; controls: Record<string, number> }> {
+export async function getSettings(): Promise<{ profile: CameraProfile; settings: CameraSettings }> {
   const r = await fetch('/api/camera/settings')
   return r.json()
 }
 
-export async function patchSettings(values: Record<string, number>): Promise<{ controls: Record<string, number> }> {
+export async function patchSettings(
+  values: Partial<CameraSettings>,
+): Promise<{ settings: CameraSettings }> {
   const r = await fetch('/api/camera/settings', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(values),
   })
   return r.json()
+}
+
+export type Preset = { name: string; settings: CameraSettings }
+
+export async function listPresets(): Promise<Preset[]> {
+  const r = await fetch('/api/camera/presets')
+  return (await r.json()).presets
+}
+
+export async function savePreset(name: string): Promise<Preset[]> {
+  const r = await fetch('/api/camera/presets', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  })
+  return (await r.json()).presets
+}
+
+export async function applyPreset(name: string): Promise<{ settings: CameraSettings }> {
+  const r = await fetch(`/api/camera/presets/${encodeURIComponent(name)}/apply`, { method: 'POST' })
+  return r.json()
+}
+
+export async function deletePreset(name: string): Promise<Preset[]> {
+  const r = await fetch(`/api/camera/presets/${encodeURIComponent(name)}`, { method: 'DELETE' })
+  return (await r.json()).presets
 }
 
 export type Roi = [number, number, number, number] | null

@@ -331,9 +331,11 @@ MJPEG broker; `CameraProfile` detection; `scripts/probe_camera.py`. Verify with 
 **M2 — Focus assist v1. ✅ done (mock-verified).** Laplacian focus score + sparkline, log
 histogram + clipping, drag-ROI, CSS zoom, overlays, night theme.
 
-**M3 — Camera controls & star preview.** Manual exposure/gain sliders bounded by `CameraProfile`,
-**AE/AWB lock**, control validation (no raw dict pass-through), **star-preview mode** (long
-`FrameDurationLimits`, slow-cadence UI), presets.
+**M3 — Camera controls & star preview. ✅ core done (mock-verified); on-Pi run open.** Manual
+exposure/gain sliders bounded by `CameraProfile`, **AE/AWB lock**, control validation (typed
+`CameraSettings`, no raw dict pass-through), **star-preview mode** (long `FrameDurationLimits`,
+slow-cadence UI), SQLite presets. (Brightness/contrast/sharpness + rotation/flip + resolution
+deferred — don't block M4.)
 
 **M4 — Focus assist v2 (on-sky).** **HFD/peak star metric** (night default) with mode toggle;
 analyze the **lores luma plane** instead of decoded JPEG; **`ScalerCrop` 1:1 zoom**. First real

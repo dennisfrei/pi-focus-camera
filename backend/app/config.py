@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     force_mock: bool = False
 
     captures_dir: Path = Path("captures")
+    db_path: Path = Path("astrocam.db")
 
     # Preview stream resolution for the real camera (picamera2).
     preview_width: int = 1280
