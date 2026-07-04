@@ -4,15 +4,19 @@ Turn a Raspberry Pi + camera module into a **prime-focus camera for a telescope*
 everything, is its own WiFi access point, and a phone connects to a local web GUI to **focus**,
 adjust camera settings, and **capture** — fully offline.
 
+- **[MANUAL.md](MANUAL.md)** — setup, configuration & deployment (the operator's guide)
 - **[CONCEPT.md](CONCEPT.md)** — architecture & the *what/why*
 - **[IMPLEMENTATION.md](IMPLEMENTATION.md)** — the step-by-step build plan (milestones M0–M7)
+  and the **known-issues register** from the latest code review
 
 > Status: **M0–M7 feature-complete, mock-verified.** Every milestone — live view, focus assist
 > (Scene + Star/HFD), manual controls & star preview, capture + gallery, intervalometer, system
 > panel, PWA, and deploy scripts — is built and tested against the mock camera. The parts that need
 > real hardware are written but **not yet verified on the Pi**: the picamera2 live view (M1), the
 > on-sky HFD V-curve + 1:1 `ScalerCrop` zoom (M4), long-exposure/DNG capture (M5), and the on-phone
-> PWA install over the access point (M6/M7).
+> PWA install over the access point (M6/M7). A full-branch code review (2026-07-04) found 10 issues
+> to fix before/during the hardware session — see the register in
+> [IMPLEMENTATION.md](IMPLEMENTATION.md#known-issues--code-review-2026-07-04).
 >
 > Honest scope: with the Camera Module V2 this is a **focus aid + lunar/planetary camera**;
 > productive deep-sky capture expects the HQ (IMX477) upgrade — see CONCEPT §1.
@@ -57,29 +61,16 @@ cd ../backend && uv run poe serve
 
 ## On the Raspberry Pi
 
-One-shot provisioning (Raspberry Pi OS Bookworm/Trixie, [`uv`](https://docs.astral.sh/uv/) installed):
-
 ```bash
 git clone <this repo> ~/pi-focus-camera
 cd ~/pi-focus-camera
-bash deploy/install.sh
+bash deploy/install.sh          # camera stack + venv + frontend build + systemd + mDNS
+AP_SSID=AstroCam AP_PASS='choose-8+chars' sudo -E bash deploy/setup-ap.sh   # from a LOCAL session
 ```
 
-`install.sh` installs the camera stack (apt `python3-picamera2`), builds the backend venv and the
-frontend, and enables the **systemd service** (`astrocam.service`, port 8080) and **mDNS**
-(`http://astrocam.local:8080`). It uses deploy **Path B** from [CONCEPT.md §7](CONCEPT.md) — apt's
-`picamera2` on the system Python with a `--system-site-packages` uv venv (Path A, pip `picamera2` on
-uv's Python 3.14, is the alternative). Sanity-check the camera first: `rpicam-hello --list-cameras`.
-
-Then make the Pi its own access point — **run this from a local/serial session, it drops WiFi**:
-
-```bash
-AP_SSID=AstroCam AP_PASS='choose-8+chars' sudo -E bash deploy/setup-ap.sh
-```
-
-Join that network on the phone and open **http://astrocam.local:8080** (or `http://10.42.0.1:8080`).
-The `deploy/` scripts (`install.sh`, `setup-ap.sh`, `setup-mdns.sh`, `astrocam.service`) are
-idempotent and env-configurable.
+Join the `AstroCam` WiFi on the phone and open **http://astrocam.local:8080**. Full instructions —
+Path A vs. B for `picamera2`, configuration (`PFC_*` env vars), service operation, updating, and
+troubleshooting — are in **[MANUAL.md](MANUAL.md)**.
 
 ## History
 

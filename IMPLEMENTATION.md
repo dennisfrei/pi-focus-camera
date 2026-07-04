@@ -215,8 +215,63 @@ Also folds the AP SSID/client count into the system panel (needs the AP up).
 
 ---
 
+## Known issues — code review 2026-07-04
+
+Full-branch review (M0–M7). Ranked; **HW** = only manifests on real hardware, so it must be fixed
+before / verified during the first on-Pi session. None are regressions — all are gaps in freshly
+built code.
+
+1. **HW — Post-capture settings loss** (`picamera2_driver._capture_sync`): restoring the preview
+   via `_start_sync()` never re-applies the active controls — manual exposure/gain, star-mode
+   `FrameDurationLimits`, AWB, `ScalerCrop` all silently revert to defaults after every capture
+   while `manager.settings` still claims otherwise. Fix: re-apply `to_controls(settings)` (+ zoom)
+   after restart, at the manager level.
+2. **HW — Lock bypass** (`manager.apply_settings` / `set_zoom`): neither takes `self.lock`, so a
+   settings PATCH or zoom toggle can hit `picam2.set_controls` while a capture has the camera
+   stopped/reconfigured → driver exception or corrupted capture. Fix: `async with self.lock`.
+3. **HW — Manual exposure silently capped in normal preview** (`settings.to_controls`): normal
+   mode always sends `FrameDurationLimits=(8333, 33333)`; libcamera clamps exposure to the frame
+   duration, so a manual 2 s exposure actually runs ~33 ms while the UI/presets/metadata report
+   2 s. Fix: widen the frame-duration ceiling to fit the requested exposure (or auto-promote to
+   star cadence).
+4. **Validation gap → 500** (`controllers/camera.update_settings`): the PATCH body is an untyped
+   dict; `{"gain": "abc"}` → TypeError → HTTP 500 (verified), and `preview_mode: "bogus"` is
+   accepted, stored, and broadcast. Fix: a pydantic body model (typed fields, `Literal` mode).
+5. **HW — 1:1 zoom double-crops the focus ROI** (`LiveView.toggleZoom`): engaging `ScalerCrop`
+   makes the streamed/lores frames *be* the ROI, but `manager.focus_roi` still holds full-frame
+   coordinates → the metric analyzes a crop of the crop. Fix: clear/remap the focus ROI when hw
+   zoom engages (backend `set_zoom` is the right owner).
+6. **"Capture (auto)" is actually manual** (`picamera2_driver._capture_sync` + `manager.capture`):
+   the still config hard-codes `AeEnable=False` with the stored manual `exposure_us`, so with AE
+   on the shutter captures at a stale manual value (default 20 ms), not an auto-metered exposure.
+   Fix: honor `settings.ae_enable` in the capture path (or relabel the button).
+7. **Frontend swallows API errors** (`api.ts`): every helper except `startSequence` calls
+   `r.json()` without checking `response.ok`; a 4xx/5xx wedges Controls into a permanent
+   "Loading controls…" and CaptureBar reports success on failure. Fix: shared `fetchJson` that
+   throws on `!ok`.
+8. **Slash-named presets are orphans** (`controllers/presets.py`): `POST {"name": "a/b"}` saves,
+   but apply/delete 404 (path params don't match encoded slashes; verified). Fix: reject or
+   sanitize names on save.
+9. **Latent: empty-region crash in star metrics** (`focus._star_metrics`): `np.median` runs before
+   the empty guard and `region.max()` inside it → warning + ValueError on a zero-size region
+   (currently unreachable through `_crop`, but the first empty luma plane from a driver turns the
+   analyze loop into an exception storm). Fix: size guard first.
+10. **Slider PATCH flood** (`Controls.svelte`): exposure/gain `oninput` fires a PATCH per input
+    event (~dozens per drag) with no debounce; on the Pi each one is a threaded `set_controls`.
+    Fix: throttle to ~10 Hz or apply on release with local echo.
+
+Minor (noted, not blocking): `manager.get_controls`/`set_controls` are now dead pass-throughs
+(superseded by `apply_settings`); `Picamera2()` is constructed synchronously on the event loop at
+startup (blocking, startup-only); `sequence_state.index` duplicates `done + 1`; sequence interval
+is end-to-start rather than the start-to-start cadence astro intervalometers usually mean
+(document or change); per-op SQLite connects and the PWA shell's one-reload-behind update are
+accepted trade-offs for v1.
+
+---
+
 ## Retiring the old code
 
 Keep `src/` until M1 confirms the new backend streams from real hardware. Then remove it (history
-preserves it) and delete the stale `requirements.txt` / root `.env.example` in favor of the
-`backend/` uv project and `deploy/` scripts.
+preserves it) along with the stale root `requirements.txt`. The old lowercase `readme.md` and the
+prototype's root `.env.example` were already removed in the 2026-07-04 documentation pass
+(replaced by `README.md`, `MANUAL.md`, and `backend/.env.example`).
