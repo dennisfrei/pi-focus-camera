@@ -59,6 +59,10 @@ def to_controls(settings: CameraSettings) -> dict:
         dur = int(settings.exposure_us) if not settings.ae_enable else _STAR_DEFAULT_US
         dur = max(dur, 500_000)
         controls["FrameDurationLimits"] = (dur, dur)
+    elif not settings.ae_enable and settings.exposure_us > _NORMAL_FRAME_US[1]:
+        # Normal mode, but a manual exposure longer than a video frame: raise the frame-duration
+        # ceiling to fit it, otherwise libcamera silently clamps the exposure to ~33 ms.
+        controls["FrameDurationLimits"] = (_NORMAL_FRAME_US[0], int(settings.exposure_us))
     else:
         controls["FrameDurationLimits"] = _NORMAL_FRAME_US
 

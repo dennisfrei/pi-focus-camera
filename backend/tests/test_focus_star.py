@@ -37,6 +37,17 @@ def test_hfd_shrinks_and_peak_rises_toward_focus() -> None:
     assert tight["focus_direction"] == "lower"  # minimize HFD
 
 
+def test_star_metrics_handles_empty_region() -> None:
+    """A zero-size region must return 'no star' quietly, not warn + raise inside the guard."""
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # turn any numpy RuntimeWarning into a failure
+        result = focus._star_metrics(np.empty((0, 0), dtype=np.float32))
+    assert result["found"] is False
+    assert result["hfd"] == 0.0
+
+
 def test_star_mode_reports_no_star_on_empty_sky() -> None:
     rng = np.random.default_rng(0)
     sky = rng.normal(8.0, 2.0, size=(80, 80)).clip(0, 255).astype(np.uint8)

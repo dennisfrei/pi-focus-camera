@@ -217,55 +217,42 @@ Also folds the AP SSID/client count into the system panel (needs the AP up).
 
 ## Known issues — code review 2026-07-04
 
-Full-branch review (M0–M7). Ranked; **HW** = only manifests on real hardware, so it must be fixed
-before / verified during the first on-Pi session. None are regressions — all are gaps in freshly
-built code.
+Full-branch review (M0–M7), **all 10 findings fixed 2026-07-04** (commit follows the review).
+**HW** = the fix is real code but only fully *observable* on the Pi; a regression test locks in the
+behavior that is checkable on the mock. Kept here as the record of what was wrong and how it's
+guarded.
 
-1. **HW — Post-capture settings loss** (`picamera2_driver._capture_sync`): restoring the preview
-   via `_start_sync()` never re-applies the active controls — manual exposure/gain, star-mode
-   `FrameDurationLimits`, AWB, `ScalerCrop` all silently revert to defaults after every capture
-   while `manager.settings` still claims otherwise. Fix: re-apply `to_controls(settings)` (+ zoom)
-   after restart, at the manager level.
-2. **HW — Lock bypass** (`manager.apply_settings` / `set_zoom`): neither takes `self.lock`, so a
-   settings PATCH or zoom toggle can hit `picam2.set_controls` while a capture has the camera
-   stopped/reconfigured → driver exception or corrupted capture. Fix: `async with self.lock`.
-3. **HW — Manual exposure silently capped in normal preview** (`settings.to_controls`): normal
-   mode always sends `FrameDurationLimits=(8333, 33333)`; libcamera clamps exposure to the frame
-   duration, so a manual 2 s exposure actually runs ~33 ms while the UI/presets/metadata report
-   2 s. Fix: widen the frame-duration ceiling to fit the requested exposure (or auto-promote to
-   star cadence).
-4. **Validation gap → 500** (`controllers/camera.update_settings`): the PATCH body is an untyped
-   dict; `{"gain": "abc"}` → TypeError → HTTP 500 (verified), and `preview_mode: "bogus"` is
-   accepted, stored, and broadcast. Fix: a pydantic body model (typed fields, `Literal` mode).
-5. **HW — 1:1 zoom double-crops the focus ROI** (`LiveView.toggleZoom`): engaging `ScalerCrop`
-   makes the streamed/lores frames *be* the ROI, but `manager.focus_roi` still holds full-frame
-   coordinates → the metric analyzes a crop of the crop. Fix: clear/remap the focus ROI when hw
-   zoom engages (backend `set_zoom` is the right owner).
-6. **"Capture (auto)" is actually manual** (`picamera2_driver._capture_sync` + `manager.capture`):
-   the still config hard-codes `AeEnable=False` with the stored manual `exposure_us`, so with AE
-   on the shutter captures at a stale manual value (default 20 ms), not an auto-metered exposure.
-   Fix: honor `settings.ae_enable` in the capture path (or relabel the button).
-7. **Frontend swallows API errors** (`api.ts`): every helper except `startSequence` calls
-   `r.json()` without checking `response.ok`; a 4xx/5xx wedges Controls into a permanent
-   "Loading controls…" and CaptureBar reports success on failure. Fix: shared `fetchJson` that
-   throws on `!ok`.
-8. **Slash-named presets are orphans** (`controllers/presets.py`): `POST {"name": "a/b"}` saves,
-   but apply/delete 404 (path params don't match encoded slashes; verified). Fix: reject or
-   sanitize names on save.
-9. **Latent: empty-region crash in star metrics** (`focus._star_metrics`): `np.median` runs before
-   the empty guard and `region.max()` inside it → warning + ValueError on a zero-size region
-   (currently unreachable through `_crop`, but the first empty luma plane from a driver turns the
-   analyze loop into an exception storm). Fix: size guard first.
-10. **Slider PATCH flood** (`Controls.svelte`): exposure/gain `oninput` fires a PATCH per input
-    event (~dozens per drag) with no debounce; on the Pi each one is a threaded `set_controls`.
-    Fix: throttle to ~10 Hz or apply on release with local echo.
+1. ✅ **HW — Post-capture settings loss** (`picamera2_driver._capture_sync`): the driver's still
+   path restarted a *default* preview, silently dropping manual exposure/gain, star
+   `FrameDurationLimits`, and `ScalerCrop`. Fixed: `manager.capture()` re-applies
+   `to_controls(settings)` + the tracked zoom after every capture (still under the lock). Test:
+   `test_capture_restores_preview_settings` (star cadence survives a capture).
+2. ✅ **HW — Lock bypass**: `manager.apply_settings` and `set_zoom` now run `async with self.lock`,
+   so a PATCH/zoom can't push controls while a capture has the sensor reconfigured.
+3. ✅ **HW — Manual exposure capped in normal preview** (`settings.to_controls`): normal mode now
+   raises the `FrameDurationLimits` ceiling to the requested exposure when AE is off, so a manual
+   2 s exposure isn't clamped to ~33 ms. Test: `test_normal_mode_long_manual_exposure_raises_frame_duration`.
+4. ✅ **Validation gap → 500**: `PATCH /api/camera/settings` now takes a typed `SettingsUpdate`
+   model (`Literal` mode, numeric bounds) → bad input is a 400, bogus `preview_mode` rejected.
+   Test: `test_patch_rejects_bad_input_with_400`.
+5. ✅ **HW — 1:1 zoom double-crops the focus ROI**: `manager.set_zoom` drops `focus_roi` when the
+   driver `supports_hw_zoom` (ScalerCrop makes the frame *be* the ROI). Verified via a hw-zoom stub.
+6. ✅ **"Capture (auto)" was actually manual**: `capture_still` gained an `ae` arg; the manager
+   passes `settings.ae_enable`, and the driver lets the sensor meter when AE is on.
+7. ✅ **Frontend swallowed API errors** (`api.ts`): a shared `fetchJson`/`postJson` throws on a
+   non-2xx response, so a 4xx/5xx surfaces as an error instead of assigning `undefined` into state.
+8. ✅ **Slash-named presets orphaned**: `save_preset` rejects `/` and `\` (400). Test:
+   `test_save_preset_rejects_slash_names`.
+9. ✅ **Empty-region crash in star metrics**: `_star_metrics` guards `region.size == 0` before any
+   numpy reduction. Test: `test_star_metrics_handles_empty_region` (fails on any RuntimeWarning).
+10. ✅ **Slider PATCH flood** (`Controls.svelte`): exposure/gain now echo locally on `input` and
+    PATCH once on `change` (release) — one request per drag instead of dozens.
 
-Minor (noted, not blocking): `manager.get_controls`/`set_controls` are now dead pass-throughs
-(superseded by `apply_settings`); `Picamera2()` is constructed synchronously on the event loop at
-startup (blocking, startup-only); `sequence_state.index` duplicates `done + 1`; sequence interval
-is end-to-start rather than the start-to-start cadence astro intervalometers usually mean
-(document or change); per-op SQLite connects and the PWA shell's one-reload-behind update are
-accepted trade-offs for v1.
+Still open (minor, not blocking, tracked for later): `manager.get_controls`/`set_controls` are dead
+pass-throughs; `Picamera2()` is constructed synchronously on the event loop at startup (blocking,
+startup-only); `sequence_state.index` duplicates `done + 1`; the sequence interval is end-to-start
+rather than the start-to-start cadence astro intervalometers usually mean (document or change);
+per-op SQLite connects and the PWA shell's one-reload-behind update are accepted v1 trade-offs.
 
 ---
 

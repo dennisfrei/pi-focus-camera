@@ -240,8 +240,8 @@ build.
 
 ## 6. Known issues
 
-Open findings from the 2026-07-04 code review are tracked in
-[IMPLEMENTATION.md § Known issues](IMPLEMENTATION.md#known-issues--code-review-2026-07-04) —
-several affect the not-yet-hardware-verified paths (post-capture settings restore, long manual
-exposures in normal preview mode, 1:1 zoom vs. focus ROI). Read that list before the first real
-night at the telescope.
+The 2026-07-04 code review found 10 issues; **all are fixed** (with regression tests) — see
+[IMPLEMENTATION.md § Known issues](IMPLEMENTATION.md#known-issues--code-review-2026-07-04) for the
+record. Several fixes touch hardware-only paths (post-capture settings restore, long manual
+exposures in normal preview, 1:1 zoom vs. focus ROI, auto-exposure captures) and are locked in by
+mock tests but only fully *observable* on the Pi — confirm them during the first hardware session.

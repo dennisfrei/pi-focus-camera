@@ -29,6 +29,10 @@ async def save_preset(request: Request, data: dict[str, Any]) -> dict:
     name = str(data.get("name", "")).strip()
     if not name:
         raise ValidationException(detail="preset name is required")
+    # A slash (even encoded) can't round-trip through the {name} path param, so the preset would be
+    # unreachable to apply/delete — reject it rather than silently orphan it.
+    if "/" in name or "\\" in name:
+        raise ValidationException(detail="preset name may not contain '/' or '\\'")
     await presets.save_preset(manager.db_path, name, manager.settings.as_dict())
     return {"presets": await presets.list_presets(manager.db_path)}
 

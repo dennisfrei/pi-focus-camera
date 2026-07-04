@@ -54,6 +54,7 @@ class CameraManager:
         self.focus_hz = settings.focus_hz
         self.focus_roi: focus.ROI | None = None
         self.focus_mode = "star"
+        self._zoom_roi: focus.ROI | None = None  # active hardware crop, re-applied after a capture
         self.metrics: dict = {"focus_score": 0.0, "histogram": [], "clipping": 0.0, "roi": None}
         self._analyze_task: asyncio.Task | None = None
 
@@ -96,8 +97,16 @@ class CameraManager:
         return self.focus_mode
 
     async def set_zoom(self, roi: focus.ROI | None) -> None:
-        """Ask the driver for a true 1:1 sensor crop (no-op on the mock, which zooms in CSS)."""
-        await self.camera.set_zoom(roi)
+        """Ask the driver for a true 1:1 sensor crop (no-op on the mock, which zooms in CSS).
+
+        Serialized against capture, and — on hardware — the full-frame focus ROI is dropped: once
+        ScalerCrop makes the streamed frame *be* the region, a full-frame ROI would double-crop it.
+        """
+        async with self.lock:
+            await self.camera.set_zoom(roi)
+            self._zoom_roi = roi
+            if self.camera.supports_hw_zoom:
+                self.focus_roi = None
 
     async def capture(self, raw: bool = False, exposure_us: int | None = None) -> dict:
         """Capture a still (JPEG + optional raw), store it, and return its gallery record.
@@ -119,12 +128,18 @@ class CameraManager:
             }
             progress = asyncio.create_task(self._run_progress(exp))
             try:
-                result = await self.camera.capture_still(exp, gain, raw)
+                result = await self.camera.capture_still(exp, gain, raw, self.settings.ae_enable)
             finally:
                 progress.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await progress
                 self.capture_state = {**self.capture_state, "active": False, "remaining_s": 0.0}
+                # The driver reconfigured the sensor for the still and restarted a *default* preview;
+                # re-apply the live settings (exposure/gain/mode) and any zoom so it doesn't silently
+                # revert to 30 fps auto-exposure. Direct driver calls — we already hold the lock.
+                await self.camera.set_controls(camsettings.to_controls(self.settings))
+                if self._zoom_roi is not None:
+                    await self.camera.set_zoom(self._zoom_roi)
 
             row = await anyio.to_thread.run_sync(
                 captures.write_files, self.captures_dir, result, snapshot
@@ -197,13 +212,18 @@ class CameraManager:
         logger.info("Camera started: %s", self.profile.model)
 
     async def apply_settings(self, update: dict) -> CameraSettings:
-        """Validate a partial settings update against the sensor and apply it to the driver."""
-        merged = camsettings.merge(self.settings, update)
-        merged = camsettings.clamp(merged, self.profile)
-        await self.camera.set_controls(camsettings.to_controls(merged))
-        self.settings = merged
-        logger.info("Applied settings: %s", merged.as_dict())
-        return merged
+        """Validate a partial settings update against the sensor and apply it to the driver.
+
+        Held under the lock so it can't push controls to the sensor while a capture has it
+        reconfigured (which would raise on the real driver or corrupt the shot).
+        """
+        async with self.lock:
+            merged = camsettings.merge(self.settings, update)
+            merged = camsettings.clamp(merged, self.profile)
+            await self.camera.set_controls(camsettings.to_controls(merged))
+            self.settings = merged
+            logger.info("Applied settings: %s", merged.as_dict())
+            return merged
 
     async def stop(self) -> None:
         if self._sequence_task is not None:

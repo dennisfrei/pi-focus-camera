@@ -134,28 +134,36 @@ class Picamera2Camera:
         self._picam2.set_controls({"ScalerCrop": crop})
         self._controls["ScalerCrop"] = crop
 
-    async def capture_still(self, exposure_us: int, gain: float, raw: bool) -> CaptureResult:
-        return await anyio.to_thread.run_sync(self._capture_sync, exposure_us, gain, raw)
+    async def capture_still(
+        self, exposure_us: int, gain: float, raw: bool, ae: bool
+    ) -> CaptureResult:
+        return await anyio.to_thread.run_sync(self._capture_sync, exposure_us, gain, raw, ae)
 
-    def _capture_sync(self, exposure_us: int, gain: float, raw: bool) -> CaptureResult:
+    def _capture_sync(self, exposure_us: int, gain: float, raw: bool, ae: bool) -> CaptureResult:
         """Pause preview, switch to a full-res still config, capture, then restore preview.
 
         The single sensor can't stream preview and integrate a long exposure at once, so the preview
         is genuinely paused for the duration (CONCEPT §4). Runs on a worker thread — it blocks for
-        roughly the exposure time.
+        roughly the exposure time. With ``ae`` on, the sensor meters the shot; otherwise the given
+        exposure/gain are locked.
         """
         was_recording = self._recording
         if was_recording:
             self._picam2.stop_recording()
             self._recording = False
         try:
-            still = self._picam2.create_still_configuration(
-                raw={} if raw else None,
-                controls={
+            controls = (
+                {"AeEnable": True}
+                if ae
+                else {
                     "ExposureTime": int(exposure_us),
                     "AnalogueGain": float(gain),
                     "AeEnable": False,
-                },
+                }
+            )
+            still = self._picam2.create_still_configuration(
+                raw={} if raw else None,
+                controls=controls,
             )
             self._picam2.configure(still)
             self._picam2.start()

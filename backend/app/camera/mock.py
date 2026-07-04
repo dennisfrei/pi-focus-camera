@@ -152,11 +152,14 @@ class MockCamera:
         img.save(buf, format="JPEG", quality=80)
         return buf.getvalue()
 
-    async def capture_still(self, exposure_us: int, gain: float, raw: bool) -> CaptureResult:
+    async def capture_still(
+        self, exposure_us: int, gain: float, raw: bool, ae: bool
+    ) -> CaptureResult:
         # Simulate the sensor integrating (capped so short-exposure tests stay fast) — this is what
         # gives the long-exposure countdown something real to count down. No sensor to pause here.
+        # With AE on there's no real metering to mimic, so fall back to a mid brightness.
         await asyncio.sleep(min(exposure_us / 1_000_000, 8.0))
-        scale = (exposure_us / 20_000.0) * gain
+        scale = 3.0 if ae else (exposure_us / 20_000.0) * gain
         img = await anyio.to_thread.run_sync(self._draw_scene, time.monotonic(), scale)
 
         buf = io.BytesIO()

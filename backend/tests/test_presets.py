@@ -60,3 +60,10 @@ def test_preset_endpoints_save_apply_delete() -> None:
 def test_save_preset_requires_a_name() -> None:
     with TestClient(app=app) as client:
         assert client.post("/api/camera/presets", json={"name": "  "}).status_code == 400
+
+
+def test_save_preset_rejects_slash_names() -> None:
+    """A '/' can't round-trip the path param, so it must be rejected rather than orphaned."""
+    with TestClient(app=app, raise_server_exceptions=False) as client:
+        assert client.post("/api/camera/presets", json={"name": "a/b"}).status_code == 400
+        assert client.post("/api/camera/presets", json={"name": "a\\b"}).status_code == 400

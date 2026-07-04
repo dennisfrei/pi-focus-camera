@@ -65,9 +65,12 @@ def _star_metrics(region: np.ndarray) -> dict:
     flux-weighted mean radius doubled, i.e. the diameter enclosing half the flux. Returns
     ``found=False`` when nothing rises far enough above the background to trust.
     """
+    if region.size == 0:
+        return {"found": False, "hfd": 0.0, "peak": 0.0}
     bg = float(np.median(region))
-    if region.size == 0 or float(region.max()) - bg < _STAR_MIN_PEAK:
-        return {"found": False, "hfd": 0.0, "peak": round(max(0.0, float(region.max()) - bg), 1)}
+    peak_above_bg = float(region.max()) - bg
+    if peak_above_bg < _STAR_MIN_PEAK:
+        return {"found": False, "hfd": 0.0, "peak": round(max(0.0, peak_above_bg), 1)}
 
     # Window the brightest star out of the ROI before measuring.
     py, px = np.unravel_index(int(np.argmax(region)), region.shape)

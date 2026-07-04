@@ -62,6 +62,12 @@ class Camera(Protocol):
         """Crop the sensor to ``roi`` (normalized) for a 1:1 zoom, or None to restore full frame."""
         ...
 
-    async def capture_still(self, exposure_us: int, gain: float, raw: bool) -> CaptureResult:
-        """Capture a full-resolution still at the given exposure/gain, then restore preview."""
+    async def capture_still(
+        self, exposure_us: int, gain: float, raw: bool, ae: bool
+    ) -> CaptureResult:
+        """Capture a full-resolution still, then restore preview.
+
+        When ``ae`` is True the sensor meters the exposure itself (``exposure_us``/``gain`` are
+        ignored); when False they are applied as a locked manual exposure.
+        """
         ...

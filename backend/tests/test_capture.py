@@ -89,6 +89,25 @@ def test_capture_with_raw() -> None:
             client.delete(f"/api/gallery/{cid}")
 
 
+async def test_capture_restores_preview_settings(tmp_path: Path) -> None:
+    """After a capture the driver's controls must still reflect the live settings, not defaults."""
+    settings = Settings(db_path=tmp_path / "s.db", captures_dir=tmp_path / "caps")
+    await captures.init_db(settings.db_path)
+    manager = CameraManager(settings)
+    await manager.start()
+    try:
+        await manager.apply_settings(
+            {"ae_enable": False, "exposure_us": 1_500_000, "preview_mode": "star"}
+        )
+        before = manager.camera._controls.get("FrameDurationLimits")
+        await manager.capture(raw=False)
+        after = manager.camera._controls.get("FrameDurationLimits")
+        assert after == before  # star cadence survived the capture, not reverted to video rate
+        assert after == (1_500_000, 1_500_000)
+    finally:
+        await manager.stop()
+
+
 async def test_long_exposure_reports_progress(tmp_path: Path) -> None:
     settings = Settings(db_path=tmp_path / "t.db", captures_dir=tmp_path / "caps")
     await captures.init_db(settings.db_path)

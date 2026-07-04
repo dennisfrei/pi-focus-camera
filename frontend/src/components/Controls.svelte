@@ -48,13 +48,20 @@
     }
   }
 
-  function onExposure(e: Event) {
-    const frac = Number((e.target as HTMLInputElement).value)
-    const us = Math.round(10 ** (logMin + frac * (logMax - logMin)))
-    apply({ exposure_us: us })
-  }
+  const expFromFrac = (frac: number) => Math.round(10 ** (logMin + frac * (logMax - logMin)))
 
-  function onGain(e: Event) {
+  // While dragging, only echo the value locally (moves the slider + label); the PATCH fires once
+  // on release (change), so a drag is one request instead of ~30–60 hammering the driver.
+  function onExposureInput(e: Event) {
+    if (settings) settings = { ...settings, exposure_us: expFromFrac(Number((e.target as HTMLInputElement).value)) }
+  }
+  function onExposureCommit(e: Event) {
+    apply({ exposure_us: expFromFrac(Number((e.target as HTMLInputElement).value)) })
+  }
+  function onGainInput(e: Event) {
+    if (settings) settings = { ...settings, gain: Number((e.target as HTMLInputElement).value) }
+  }
+  function onGainCommit(e: Event) {
     apply({ gain: Number((e.target as HTMLInputElement).value) })
   }
 
@@ -121,7 +128,8 @@
         step="0.001"
         value={expSlider}
         disabled={settings.ae_enable}
-        oninput={onExposure}
+        oninput={onExposureInput}
+        onchange={onExposureCommit}
       />
     </div>
 
@@ -137,7 +145,8 @@
         step="0.1"
         value={settings.gain}
         disabled={settings.ae_enable}
-        oninput={onGain}
+        oninput={onGainInput}
+        onchange={onGainCommit}
       />
     </div>
 

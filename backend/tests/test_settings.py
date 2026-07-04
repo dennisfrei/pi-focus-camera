@@ -84,3 +84,31 @@ def test_patch_star_mode_switch() -> None:
     with TestClient(app=app) as client:
         resp = client.patch("/api/camera/settings", json={"preview_mode": "star"})
         assert resp.json()["settings"]["preview_mode"] == "star"
+        client.patch("/api/camera/settings", json={"preview_mode": "normal"})  # restore
+
+
+def test_patch_rejects_bad_input_with_400() -> None:
+    """Wrong types / unknown enum values are a 400, not a 500 or a silently-stored bad value."""
+    with TestClient(app=app, raise_server_exceptions=False) as client:
+        assert client.patch("/api/camera/settings", json={"gain": "abc"}).status_code == 400
+        assert client.patch("/api/camera/settings", json={"exposure_us": "oops"}).status_code == 400
+        assert (
+            client.patch("/api/camera/settings", json={"preview_mode": "bogus"}).status_code == 400
+        )
+        # A valid partial update still works and unknown keys are ignored.
+        ok = client.patch("/api/camera/settings", json={"gain": 4.0, "nope": 1})
+        assert ok.status_code == 200
+        assert ok.json()["settings"]["gain"] == 4.0
+        client.patch("/api/camera/settings", json={"gain": 1.0})
+
+
+def test_normal_mode_long_manual_exposure_raises_frame_duration() -> None:
+    """A manual exposure longer than a video frame must widen FrameDurationLimits, not be clamped."""
+    long_normal = camsettings.to_controls(
+        CameraSettings(ae_enable=False, exposure_us=2_000_000, preview_mode="normal")
+    )
+    assert long_normal["FrameDurationLimits"] == (camsettings._NORMAL_FRAME_US[0], 2_000_000)
+    short_normal = camsettings.to_controls(
+        CameraSettings(ae_enable=False, exposure_us=10_000, preview_mode="normal")
+    )
+    assert short_normal["FrameDurationLimits"] == camsettings._NORMAL_FRAME_US
