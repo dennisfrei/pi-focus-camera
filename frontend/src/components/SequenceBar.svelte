@@ -1,13 +1,15 @@
 <script lang="ts">
   import { live } from '../lib/live'
-  import { startSequence, cancelSequence } from '../lib/api'
+  import { startSequence, cancelSequence, type FrameType } from '../lib/api'
   import { bumpCaptures } from '../lib/stores'
+  import FrameTypeSelect from './FrameTypeSelect.svelte'
 
-  // Intervalometer: N frames at the current exposure, with a gap between them. Each frame lands in
-  // the gallery; progress comes over the WebSocket.
+  // Intervalometer: N frames at the current exposure, interval measured start-to-start. Each frame
+  // lands in the gallery; progress comes over the WebSocket.
   let count = $state(5)
   let interval = $state(2)
   let raw = $state(false)
+  let frameType = $state<FrameType>('light')
   let error = $state<string | null>(null)
 
   const seq = $derived($live?.sequence)
@@ -27,7 +29,7 @@
   async function start() {
     error = null
     try {
-      await startSequence({ count, interval_s: interval, raw })
+      await startSequence({ count, interval_s: interval, raw, frame_type: frameType })
     } catch {
       error = 'could not start'
     }
@@ -55,6 +57,10 @@
       <label>
         Interval (s)
         <input type="number" min="0" step="0.5" bind:value={interval} />
+      </label>
+      <label>
+        Type
+        <FrameTypeSelect bind:value={frameType} />
       </label>
       <label class="raw">
         <input type="checkbox" bind:checked={raw} />

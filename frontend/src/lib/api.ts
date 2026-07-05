@@ -66,6 +66,7 @@ export function startSequence(opts: {
   interval_s: number
   exposure_us?: number
   raw?: boolean
+  frame_type?: FrameType
 }): Promise<unknown> {
   return postJson('/api/sequence', opts)
 }
@@ -122,8 +123,10 @@ export type Capture = {
   has_raw: boolean
 }
 
+export type FrameType = 'light' | 'dark' | 'flat' | 'bias'
+
 export function capture(
-  opts: { raw?: boolean; exposure_us?: number },
+  opts: { raw?: boolean; exposure_us?: number; frame_type?: FrameType },
 ): Promise<Capture | { cancelled: true }> {
   return postJson('/api/capture', opts)
 }

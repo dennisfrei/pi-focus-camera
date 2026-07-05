@@ -126,6 +126,14 @@ def test_capture_cancel_endpoint_when_idle(client: TestClient) -> None:
     assert client.post("/api/capture/cancel").json() == {"cancelled": False}
 
 
+def test_capture_records_frame_type(client: TestClient) -> None:
+    created = client.post("/api/capture", json={"exposure_us": 15000, "frame_type": "dark"}).json()
+    assert created["settings"]["frame_type"] == "dark"
+    assert created["jpeg_path"].startswith("dark_")  # frame type prefixes the filename
+    # An unknown frame type is rejected by the typed model.
+    assert client.post("/api/capture", json={"frame_type": "bogus"}).status_code == 400
+
+
 async def test_long_exposure_reports_progress(tmp_path: Path) -> None:
     settings = Settings(db_path=tmp_path / "t.db", captures_dir=tmp_path / "caps")
     await captures.init_db(settings.db_path)

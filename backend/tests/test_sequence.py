@@ -61,6 +61,47 @@ async def test_sequence_can_be_cancelled(tmp_path: Path) -> None:
         await manager.stop()
 
 
+async def test_sequence_cadence_is_start_to_start(tmp_path: Path) -> None:
+    """The interval is measured start-to-start: when a capture overruns it, it's absorbed."""
+    loop = asyncio.get_running_loop()
+    manager = await _manager(tmp_path)
+    await manager.apply_settings({"ae_enable": False, "exposure_us": 300_000})  # capture > interval
+    try:
+        # Baseline: one capture's wall time (cancels per-frame render/encode/IO overhead).
+        t = loop.time()
+        await manager._do_capture(raw=False, exposure_us=300_000)
+        single = loop.time() - t
+
+        t = loop.time()
+        manager.start_sequence(count=3, interval_s=0.3)  # interval < capture → fully absorbed
+        for _ in range(200):
+            if not manager.sequence_state["active"]:
+                break
+            await asyncio.sleep(0.02)
+        seq = loop.time() - t
+
+        assert manager.sequence_state["done"] == 3
+        # Start-to-start ≈ 3×single (idle waits absorbed). End-to-start would add 2×0.3 = 0.6 s.
+        assert seq < 3 * single + 0.3
+    finally:
+        await manager.stop()
+
+
+async def test_sequence_tags_frame_type(tmp_path: Path) -> None:
+    manager = await _manager(tmp_path)
+    try:
+        manager.start_sequence(count=2, interval_s=0.0, frame_type="flat")
+        for _ in range(100):
+            if not manager.sequence_state["active"]:
+                break
+            await asyncio.sleep(0.05)
+        rows = await captures.list_captures(manager.db_path)
+        assert len(rows) == 2
+        assert all(r["settings"]["frame_type"] == "flat" for r in rows)
+    finally:
+        await manager.stop()
+
+
 async def test_rejects_second_sequence(tmp_path: Path) -> None:
     manager = await _manager(tmp_path)
     try:

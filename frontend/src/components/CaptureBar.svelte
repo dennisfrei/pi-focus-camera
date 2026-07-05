@@ -1,11 +1,13 @@
 <script lang="ts">
   import { live } from '../lib/live'
-  import { capture, cancelCapture } from '../lib/api'
+  import { capture, cancelCapture, type FrameType } from '../lib/api'
   import { bumpCaptures } from '../lib/stores'
+  import FrameTypeSelect from './FrameTypeSelect.svelte'
 
   // Shutter for a single still. Uses the current exposure/gain; a long exposure pauses the preview
   // and counts down. "Raw" also saves the sensor frame (DNG on the Pi) for stacking later.
   let raw = $state(false)
+  let frameType = $state<FrameType>('light')
   let error = $state<string | null>(null)
 
   const cap = $derived($live?.capture)
@@ -25,7 +27,7 @@
   async function shoot() {
     error = null
     try {
-      const result = await capture({ raw })
+      const result = await capture({ raw, frame_type: frameType })
       if ('id' in result) bumpCaptures() // skip on a cancelled capture
     } catch {
       error = 'capture failed'
@@ -45,6 +47,7 @@
     <button class="cancel" onclick={cancelCapture}>Cancel</button>
   {:else}
     <button class="shutter" onclick={shoot}>{shutterLabel}</button>
+    <FrameTypeSelect bind:value={frameType} />
     <label class="raw">
       <input type="checkbox" bind:checked={raw} />
       Raw

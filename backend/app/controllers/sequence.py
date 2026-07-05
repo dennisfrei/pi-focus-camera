@@ -10,14 +10,19 @@ from litestar import Request, post
 from litestar.exceptions import ClientException
 from pydantic import BaseModel, Field
 
+from .capture import FrameType
+
 
 class SequenceRequest(BaseModel):
     count: int = Field(ge=1, le=999, description="Number of frames to capture.")
-    interval_s: float = Field(default=0.0, ge=0.0, description="Delay between frames, seconds.")
+    interval_s: float = Field(
+        default=0.0, ge=0.0, description="Seconds between frame starts (start-to-start cadence)."
+    )
     exposure_us: int | None = Field(
         default=None, ge=1, description="Per-frame exposure; defaults to the current setting."
     )
     raw: bool = False
+    frame_type: FrameType = "light"
 
 
 @post("/api/sequence")
@@ -29,6 +34,7 @@ async def start_sequence(request: Request, data: SequenceRequest) -> dict:
             interval_s=data.interval_s,
             exposure_us=data.exposure_us,
             raw=data.raw,
+            frame_type=data.frame_type,
         )
     except RuntimeError as exc:
         raise ClientException(detail=str(exc)) from exc  # 400: already running

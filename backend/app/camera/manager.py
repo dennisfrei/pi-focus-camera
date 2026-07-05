@@ -116,14 +116,16 @@ class CameraManager:
             if self.profile.supports_hw_zoom:
                 self.focus_roi = None
 
-    async def capture(self, raw: bool = False, exposure_us: int | None = None) -> dict | None:
+    async def capture(
+        self, raw: bool = False, exposure_us: int | None = None, frame_type: str = "light"
+    ) -> dict | None:
         """Capture a single still, cancelably. Returns the gallery record, or None if cancelled.
 
         The work runs as a tracked task so ``cancel_capture`` can abort a long exposure (e.g. a
         mis-framed 200 s sub) without waiting it out. Sequences call :meth:`_do_capture` directly so
         cancelling one frame doesn't tear down the whole run.
         """
-        task = asyncio.create_task(self._do_capture(raw, exposure_us))
+        task = asyncio.create_task(self._do_capture(raw, exposure_us, frame_type))
         self._capture_task = task
         try:
             return await task
@@ -140,7 +142,9 @@ class CameraManager:
             return True
         return False
 
-    async def _do_capture(self, raw: bool, exposure_us: int | None) -> dict:
+    async def _do_capture(
+        self, raw: bool, exposure_us: int | None, frame_type: str = "light"
+    ) -> dict:
         """Capture a still (JPEG + optional raw), store it, and return its gallery record.
 
         The lock serializes captures against each other and against mode switches. For a long
@@ -150,7 +154,12 @@ class CameraManager:
         async with self.lock:
             exp = int(exposure_us) if exposure_us else int(self.settings.exposure_us)
             gain = float(self.settings.gain)
-            snapshot = {**self.settings.as_dict(), "exposure_us": exp, "raw": raw}
+            snapshot = {
+                **self.settings.as_dict(),
+                "exposure_us": exp,
+                "raw": raw,
+                "frame_type": frame_type,
+            }
             self.capture_state = {
                 "active": True,
                 "progress": 0.0,
@@ -194,7 +203,12 @@ class CameraManager:
             await asyncio.sleep(0.1)
 
     def start_sequence(
-        self, count: int, interval_s: float, exposure_us: int | None = None, raw: bool = False
+        self,
+        count: int,
+        interval_s: float,
+        exposure_us: int | None = None,
+        raw: bool = False,
+        frame_type: str = "light",
     ) -> dict:
         """Kick off an N-frame intervalometer run in the background; returns the initial state."""
         if self.sequence_state["active"]:
@@ -207,19 +221,27 @@ class CameraManager:
             "interval_s": interval_s,
             "exposure_us": exp,
             "raw": raw,
+            "frame_type": frame_type,
         }
-        self._sequence_task = asyncio.create_task(self._run_sequence(count, interval_s, exp, raw))
+        self._sequence_task = asyncio.create_task(
+            self._run_sequence(count, interval_s, exp, raw, frame_type)
+        )
         return dict(self.sequence_state)
 
     async def _run_sequence(
-        self, count: int, interval_s: float, exposure_us: int, raw: bool
+        self, count: int, interval_s: float, exposure_us: int, raw: bool, frame_type: str
     ) -> None:
+        loop = asyncio.get_running_loop()
         try:
             for i in range(count):
-                await self._do_capture(raw=raw, exposure_us=exposure_us)
+                # Start-to-start cadence: the interval is measured from when each frame *begins*,
+                # so a capture that overruns the interval just starts the next one immediately —
+                # what an astro intervalometer means by "interval".
+                frame_start = loop.time()
+                await self._do_capture(raw=raw, exposure_us=exposure_us, frame_type=frame_type)
                 self.sequence_state = {**self.sequence_state, "done": i + 1}
                 if i < count - 1:
-                    await asyncio.sleep(interval_s)
+                    await asyncio.sleep(max(0.0, interval_s - (loop.time() - frame_start)))
         except asyncio.CancelledError:
             pass  # cancel_sequence stops it between/within frames
         finally:

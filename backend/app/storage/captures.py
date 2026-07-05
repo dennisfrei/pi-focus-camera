@@ -58,7 +58,9 @@ def write_files(captures_dir: Path, result: CaptureResult, settings: dict) -> di
     """
     captures_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")[:-3]
-    base = f"cap_{stamp}"
+    # Prefix with the frame type (light/dark/flat/bias) so files sort by kind for stacking.
+    frame_type = str(settings.get("frame_type", "light"))
+    base = f"{frame_type}_{stamp}"
 
     jpeg_name = f"{base}.jpg"
     (captures_dir / jpeg_name).write_bytes(result.jpeg)
