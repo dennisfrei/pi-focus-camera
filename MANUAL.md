@@ -157,10 +157,17 @@ exact libcamera version).
   rm -rf .venv                                               # if you already made a 3.14 venv
   uv venv --system-site-packages --python /usr/bin/python3   # venv that can see apt packages
   uv pip install -e .                                        # app + core deps; picamera2 from apt
+  uv pip uninstall numpy                                     # ← use apt's numpy (see note below)
   .venv/bin/python scripts/probe_camera.py                   # verify: prints the CameraProfile
   ```
   This pins only the **on-device** interpreter (3.11 on Bookworm, 3.13 on Trixie); dev stays on 3.14.
   No `--extra pi` needed — picamera2 comes from the apt packages, so nothing is compiled.
+
+  > **Why uninstall numpy?** apt's `python3-picamera2`/`python3-simplejpeg` C extensions are built
+  > against the system numpy (1.24 on Bookworm). `uv pip install` puts numpy 2.x in the venv, which
+  > *shadows* the system one and breaks `simplejpeg` with `numpy.dtype size changed … ABI`. Removing
+  > the venv copy lets the app use apt's numpy (our code runs fine on it). `install.sh` does this for
+  > you (it skips numpy at install time).
 
   > ⚠️ **On the Pi with Path B, run the app via the venv directly — never `uv run` / `uv sync`.**
   > Those are project-aware: they see `.python-version` (3.14) and **recreate `.venv` on 3.14

@@ -30,8 +30,12 @@ cd "$APP_DIR/backend"
 uv venv --system-site-packages --python /usr/bin/python3
 # Install the exact locked versions (uv.lock) rather than a fresh resolve, then the project itself.
 # --no-hashes keeps it working across architectures (the Pi pulls its own aarch64 wheels).
+# NOTE: numpy is deliberately dropped here so it comes from apt (python3-numpy). apt's picamera2 /
+# simplejpeg C extensions are built against that numpy; a pip numpy 2.x in the venv would shadow it
+# and break simplejpeg with a "numpy.dtype size changed" ABI error. Our code runs fine on apt numpy.
 REQ="$(mktemp)"
 uv export --no-dev --no-emit-project --frozen --no-hashes -o "$REQ"
+sed -i '/^numpy/d' "$REQ"
 uv pip install -r "$REQ"
 uv pip install -e . --no-deps
 rm -f "$REQ"

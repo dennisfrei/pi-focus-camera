@@ -23,6 +23,9 @@ picamera2 install caveat). Milestone context is in [IMPLEMENTATION.md](IMPLEMENT
    imports, the sensor is found, and `build_profile` reads sane values.**
    ⚠️ On Path B, **run via `.venv/bin/…`, not `uv run`** — `uv run`/`uv sync` recreate `.venv` on the
    pinned 3.14 without `--system-site-packages` and lose picamera2 (see MANUAL §4.1).
+   ⚠️ If you did a *manual* Path B (not `install.sh`) and hit `numpy.dtype size changed … ABI` from
+   simplejpeg, run `uv pip uninstall numpy` so the app uses apt's numpy (what picamera2 was built
+   against). `install.sh` already skips pip numpy.
 4. Run it: `.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8080` (or the installed
    `astrocam.service`), open the page, watch the log — `picamera2 available — using Picamera2Camera`
    means you're on real hardware; `Falling back to MockCamera` means it isn't (check the reason).
