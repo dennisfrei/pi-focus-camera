@@ -14,6 +14,10 @@
   let selected = $state<Capture | null>(null)
   let filter = $state<'all' | FrameType>('all')
 
+  // Multi-select mode for bulk delete.
+  let selectMode = $state(false)
+  let picked = $state<Set<number>>(new Set())
+
   const frameType = (c: Capture) => String(c.settings.frame_type ?? 'light')
   const shown = $derived(filter === 'all' ? items : items.filter((c) => frameType(c) === filter))
 
@@ -30,6 +34,31 @@
   async function remove(id: number) {
     await deleteCapture(id)
     if (selected?.id === id) selected = null
+    bumpCaptures()
+  }
+
+  function tileClick(c: Capture) {
+    if (!selectMode) {
+      selected = c
+      return
+    }
+    picked.has(c.id) ? picked.delete(c.id) : picked.add(c.id)
+    picked = new Set(picked) // reassign so Svelte tracks the change
+  }
+
+  function toggleSelectMode() {
+    selectMode = !selectMode
+    picked = new Set()
+  }
+
+  function pickAll() {
+    picked = new Set(shown.map((c) => c.id))
+  }
+
+  async function removePicked() {
+    if (picked.size === 0 || !confirm(`Delete ${picked.size} capture(s)?`)) return
+    await Promise.all([...picked].map((id) => deleteCapture(id)))
+    toggleSelectMode()
     bumpCaptures()
   }
 
@@ -55,16 +84,25 @@
   <div class="head">
     <span class="label">Gallery</span>
     <div class="right">
-      {#if items.length}
-        <select bind:value={filter} class="filter" aria-label="Filter by frame type">
-          <option value="all">All</option>
-          <option value="light">Light</option>
-          <option value="dark">Dark</option>
-          <option value="flat">Flat</option>
-          <option value="bias">Bias</option>
-        </select>
+      {#if selectMode}
+        <button class="mini" onclick={pickAll}>All</button>
+        <button class="mini danger" disabled={picked.size === 0} onclick={removePicked}>
+          Delete ({picked.size})
+        </button>
+        <button class="mini" onclick={toggleSelectMode}>Done</button>
+      {:else}
+        {#if items.length}
+          <select bind:value={filter} class="filter" aria-label="Filter by frame type">
+            <option value="all">All</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+            <option value="flat">Flat</option>
+            <option value="bias">Bias</option>
+          </select>
+          <button class="mini" onclick={toggleSelectMode}>Select</button>
+        {/if}
+        <span class="count">{shown.length}</span>
       {/if}
-      <span class="count">{shown.length}</span>
     </div>
   </div>
 
@@ -75,10 +113,16 @@
   {:else}
     <div class="grid">
       {#each shown as c (c.id)}
-        <button class="tile" onclick={() => (selected = c)} title={fmt(c.created)}>
+        <button
+          class="tile"
+          class:picked={selectMode && picked.has(c.id)}
+          onclick={() => tileClick(c)}
+          title={fmt(c.created)}
+        >
           <img src={thumbUrl(c.id)} alt="capture {c.id}" loading="lazy" />
           {#if frameType(c) !== 'light'}<span class="ftype">{frameType(c)}</span>{/if}
           {#if c.has_raw}<span class="raw">RAW</span>{/if}
+          {#if selectMode && picked.has(c.id)}<span class="check">✓</span>{/if}
         </button>
       {/each}
     </div>
@@ -147,6 +191,23 @@
     background: var(--bg);
     color: var(--fg);
   }
+  .mini {
+    background: transparent;
+    color: var(--fg);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 0.15rem 0.5rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+  }
+  .mini.danger {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  }
+  .mini:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
   .count {
     color: var(--muted);
     font-size: 0.75rem;
@@ -177,6 +238,24 @@
     height: 100%;
     object-fit: cover;
     display: block;
+  }
+  .tile.picked {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent) inset;
+  }
+  .tile .check {
+    position: absolute;
+    bottom: 3px;
+    right: 3px;
+    font-size: 0.7rem;
+    background: var(--accent);
+    color: #000;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    display: grid;
+    place-items: center;
+    line-height: 1;
   }
   .tile .raw {
     position: absolute;

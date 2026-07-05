@@ -238,6 +238,25 @@ The remaining audit items (idle-pause of the analyze loop / encoder, smaller lor
 payload dedup, gallery pagination, the V-curve focus tracker) are the next pass — several are best
 validated during the hardware session.
 
+## Feature pass — 2026-07-05
+
+Post-v1 features (mock-verifiable; V-curve tracker deliberately skipped for now):
+
+- **Frame-type tagging** — every capture/sequence frame is tagged light/dark/flat/bias (selector in
+  the capture + sequence bars), recorded in the settings snapshot and as the **filename prefix**
+  (`dark_20260705_….jpg`); the gallery shows the type and filters by it.
+- **Start-to-start sequence cadence** — the intervalometer now measures the interval from each
+  frame's *start*, so a capture that overruns the interval starts the next immediately (what an
+  astro intervalometer means) rather than adding the interval on top.
+- **Disk/thermal warnings** — the system panel flags CPU temp > 75 °C and < 1 GB free disk.
+- **Night-mode screen dimmer** — a header brightness slider applies a CSS `brightness()` filter to
+  the whole page to protect dark adaptation.
+- **Bulk gallery ops** — a Select mode with select-all and bulk delete.
+
+Still not built (by choice): the **V-curve / best-focus tracker** (highest-value, deferred), and
+the Pi performance cluster (idle-pause analyze/encoder, smaller lores, WS payload dedup, gallery
+pagination) — best validated during the hardware session.
+
 ## Code-health pass — 2026-07-05
 
 Structural cleanup before the next feature round (no behavior change):

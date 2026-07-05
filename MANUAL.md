@@ -38,7 +38,7 @@ Poe tasks (defined in `backend/pyproject.toml`):
 |------|--------------|
 | `uv run poe dev` | dev server with auto-reload, port 8080 |
 | `uv run poe serve` | production server (no reload) |
-| `uv run poe test` | pytest (49 tests, all mock-driven — no hardware needed) |
+| `uv run poe test` | pytest (53 tests, all mock-driven — no hardware needed) |
 | `uv run poe lint` | ruff check |
 | `uv run poe format` | ruff format |
 
