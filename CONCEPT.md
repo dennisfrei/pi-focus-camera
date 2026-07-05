@@ -263,14 +263,15 @@ to the `Camera` Protocol and picks `MockCamera` when picamera2 can't be imported
 `picamera2` binds to `libcamera`. Two ways to get it, and they interact badly with a
 uv-managed **Python 3.14**:
 
-- **A. Pip-installable stack (keeps uv + 3.14):**
+- **A. Pip-installable stack (keeps uv + 3.14) — *fragile*:**
   ```bash
-  sudo apt install -y libcap-dev   # picamera2 → python-prctl builds against libcap
-  uv sync --extra pi               # adds picamera2 + rpi-libcamera (no rpi-kms — headless)
+  sudo apt install -y libcap-dev cmake libcamera-dev   # build deps: python-prctl + rpi-libcamera
+  uv sync --extra pi                                    # adds picamera2 + rpi-libcamera (no rpi-kms)
   ```
   `pi` is an optional extra in `pyproject.toml`, so a plain `uv sync` (dev box) never touches it.
-  Clean if wheels exist for your Python/libcamera combo. **Risk:** `rpi-libcamera` is niche and
-  must match the system libcamera; wheels for a brand-new 3.14 may lag. Verify on the real Pi.
+  **Risk (observed):** `rpi-libcamera` has no wheels — it compiles `pylibcamera` against the system
+  libcamera from source and must match its version exactly. Every dep needs system build headers;
+  if it fails to build or import, **use path B** (below), which needs none of this.
 
 - **B. System apt package (most reliable, but pins Python):**
   `python3-picamera2` is built against the OS's **system Python (3.13 on Trixie)**, and a

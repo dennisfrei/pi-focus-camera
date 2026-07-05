@@ -145,25 +145,30 @@ app can work without it.
 ### 4.1 The picamera2 question (Path A vs Path B)
 
 `picamera2` binds to the OS's libcamera and is the one dependency that can't be treated normally
-(CONCEPT.md §7):
+(CONCEPT.md §7). **Use Path B unless you specifically need uv's Python 3.14** — Path A compiles
+`rpi-libcamera` against the system libcamera from source and is genuinely fragile (it must match your
+exact libcamera version).
 
-- **Path A — pip stack, keeps uv's Python 3.14:**
-  ```bash
-  sudo apt install -y libcap-dev        # picamera2 → python-prctl needs the libcap headers
-  cd backend && uv sync --extra pi      # installs picamera2 + rpi-libcamera
-  ```
-  The Pi stack is the optional **`pi` extra** in `pyproject.toml`, so a plain `uv sync` never
-  touches it. Clean *if* wheels exist for your Python/libcamera combo; `rpi-libcamera` is
-  version-sensitive. Try this if you want to stay on 3.14.
-- **Path B — apt package on the system Python (what `install.sh` does; most reliable):**
+- **Path B — apt package on the system Python (what `install.sh` does; recommended):**
   ```bash
   sudo apt install -y python3-picamera2 python3-libcamera
   cd backend
+  rm -rf .venv                                               # if you already made a 3.14 venv
   uv venv --system-site-packages --python /usr/bin/python3   # venv that can see apt packages
-  uv pip install -e .                                        # litestar, uvicorn, numpy, ...
+  uv pip install -e .                                        # app + core deps; picamera2 from apt
+  uv run python scripts/probe_camera.py                      # verify: prints the CameraProfile
   ```
   This pins only the **on-device** interpreter (3.13 on Trixie); dev stays on 3.14. The code's
   floor is `requires-python >=3.13` and ruff lints to `py313`, so nothing 3.14-only sneaks in.
+  No `--extra pi` needed — picamera2 comes from the apt packages, so nothing is compiled.
+- **Path A — pip stack, keeps uv's Python 3.14 (fragile):**
+  ```bash
+  sudo apt install -y libcap-dev cmake libcamera-dev   # build deps: python-prctl + rpi-libcamera
+  cd backend && uv sync --extra pi                      # picamera2 + rpi-libcamera (optional extra)
+  ```
+  The Pi stack is the optional **`pi` extra** in `pyproject.toml`, so a plain `uv sync` never
+  touches it. `rpi-libcamera` builds `pylibcamera` against the system libcamera and must match its
+  version — if it fails to build or import, fall back to Path B.
 
 ### 4.2 One-shot provisioning
 
