@@ -86,6 +86,10 @@ class Picamera2Camera:
         config = self._picam2.create_video_configuration(
             main={"size": (self._w, self._h)},
             lores={"size": (self._lores_w, self._lores_h), "format": "YUV420"},
+            # Configure the stream to *allow* the sensor's full exposure range, so star-preview /
+            # long manual exposures aren't clamped to the default video frame duration. The manager
+            # immediately applies the actual limits (fast for normal preview) after start.
+            controls={"FrameDurationLimits": (8333, int(self.profile.exposure_us.max))},
         )
         self._picam2.configure(config)
         self._picam2.post_callback = self._grab_luma
@@ -172,6 +176,9 @@ class Picamera2Camera:
         if was_recording:
             self._picam2.stop_recording()
             self._recording = False
+        self._picam2.post_callback = (
+            None  # the still config has no lores stream; _start_sync re-arms
+        )
         try:
             controls = (
                 {"AeEnable": True}
