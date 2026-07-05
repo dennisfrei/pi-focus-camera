@@ -274,9 +274,9 @@ uv-managed **Python 3.14**:
   if it fails to build or import, **use path B** (below), which needs none of this.
 
 - **B. System apt package (most reliable, but pins Python):**
-  `python3-picamera2` is built against the OS's **system Python (3.13 on Trixie)**, and a
-  uv-downloaded standalone 3.14 **cannot see apt site-packages**. If A doesn't work, run the app
-  on the device with the interpreter picamera2 supports:
+  `python3-picamera2` is built against the OS's **system Python (3.11 on Bookworm, 3.13 on Trixie)**,
+  and a uv-downloaded standalone 3.14 **cannot see apt site-packages**. Run the app on the device
+  with the interpreter picamera2 supports (the project floor is `>=3.11`, so this works on Bookworm):
   ```bash
   sudo apt install -y python3-picamera2 python3-libcamera avahi-daemon
   uv venv --system-site-packages --python /usr/bin/python3   # bridge to apt packages
@@ -374,9 +374,11 @@ at **M5**.
 6. **Planetary video-burst mode** ("lucky imaging": short raw video runs at max fps, keep the
    sharpest frames): the mode the V2 is actually best at for planets. Not in M0–M7; candidate
    for the first post-v1 feature, likely alongside the HQ upgrade.
-7. **Dev/device Python skew**: dev runs 3.14, device likely 3.13 (deploy Path B). Guardrails:
-   `requires-python >=3.13`, ruff `target-version = py313` (lint to the floor, not the dev
-   version), and eventually CI running tests on 3.13. One 3.14-only construct would otherwise
+7. **Dev/device Python skew**: dev runs 3.14, device runs its system Python via Path B — **3.11 on
+   Bookworm** (the current stable Pi OS), 3.13 on Trixie. Guardrails: `requires-python >=3.11`, ruff
+   `target-version = py311` (lint to the oldest supported floor), and **CI runs the tests on 3.11**.
+   Set this floor to the *oldest* Pi OS you deploy to — it was briefly 3.13 and broke Path B on a
+   Bookworm Pi (uv rejected the 3.11 system interpreter). A newer-only construct would otherwise
    only fail at deploy time.
 8. **When to stop**: if ambitions grow toward guiding, plate-solving, or full session automation,
    the honest answer becomes "run INDI/Ekos". This project's niche is the zero-config, offline,

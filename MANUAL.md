@@ -22,7 +22,8 @@ hardware.
 | Node.js + npm | ≥ 20 | Frontend build/dev only — **not needed at runtime** |
 | git | any | — |
 
-Python itself is managed by uv (`backend/.python-version` pins 3.14; the code floor is 3.13).
+Python itself is managed by uv (`backend/.python-version` pins 3.14; the code floor is **3.11** — the
+Pi's system Python on Bookworm).
 
 ### Backend
 
@@ -46,9 +47,9 @@ The Pi camera stack (`picamera2` etc.) is deliberately **not** in `pyproject.tom
 resolve on a dev box. It's the optional **`pi` extra** in `pyproject.toml` (deploy Path A,
 `uv sync --extra pi`) or comes from apt (Path B); see §4.
 
-**CI** (`.github/workflows/ci.yml`) runs ruff + the pytest suite on **Python 3.13** (the deployment
-floor) and svelte-check + the frontend build on every push/PR — so a 3.14-only construct fails in CI
-rather than on the Pi.
+**CI** (`.github/workflows/ci.yml`) runs ruff + the pytest suite on **Python 3.11** (the deployment
+floor — Bookworm's system Python) and svelte-check + the frontend build on every push/PR — so a
+newer-only construct fails in CI rather than on the Pi.
 
 ### Frontend
 
@@ -158,8 +159,8 @@ exact libcamera version).
   uv pip install -e .                                        # app + core deps; picamera2 from apt
   uv run python scripts/probe_camera.py                      # verify: prints the CameraProfile
   ```
-  This pins only the **on-device** interpreter (3.13 on Trixie); dev stays on 3.14. The code's
-  floor is `requires-python >=3.13` and ruff lints to `py313`, so nothing 3.14-only sneaks in.
+  This pins only the **on-device** interpreter (3.11 on Bookworm, 3.13 on Trixie); dev stays on 3.14.
+  The code's floor is `requires-python >=3.11` and ruff lints to `py311`, so nothing newer sneaks in.
   No `--extra pi` needed — picamera2 comes from the apt packages, so nothing is compiled.
 - **Path A — pip stack, keeps uv's Python 3.14 (fragile):**
   ```bash

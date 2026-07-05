@@ -3,9 +3,10 @@ name = "pi-focus-camera"
 version = "0.1.0"
 description = "Prime-focus telescope camera backend (Litestar + picamera2)"
 readme = "../README.md"
-# Dev pins 3.14 via .python-version, but the floor is 3.13 so the Pi's apt python3-picamera2
-# (system Python 3.13, deploy "Path B" in CONCEPT.md §7) can run the app too.
-requires-python = ">=3.13"
+# Dev pins 3.14 via .python-version, but the floor is 3.11 so the Pi's apt python3-picamera2 can run
+# the app on its system Python too (deploy "Path B", CONCEPT.md §7) — Raspberry Pi OS **Bookworm**
+# ships Python 3.11, only Trixie is 3.13. Keep this at the oldest supported Pi OS Python.
+requires-python = ">=3.11"
 dependencies = [
     "litestar[standard]>=2.12",
     "uvicorn[standard]>=0.30",
@@ -59,9 +60,9 @@ asyncio_mode = "auto"
 
 [tool.ruff]
 line-length = 100
-# Lint to the DEPLOYMENT floor, not the dev version: device Path B runs system Python 3.13,
-# so 3.14-only constructs must be flagged here rather than failing at deploy.
-target-version = "py313"
+# Lint to the DEPLOYMENT floor, not the dev version: device Path B runs the Pi's system Python
+# (3.11 on Bookworm), so newer-only constructs must be flagged here rather than failing at deploy.
+target-version = "py311"
 
 [build-system]
 requires = ["hatchling"]

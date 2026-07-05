@@ -11,7 +11,8 @@ Guiding rules:
 - **Camera code lives behind `app/camera/base.py::Camera`** (a Protocol). Nothing outside the
   `camera/` package imports `picamera2`.
 - **uv + Python 3.14** for the backend; **Node is build-time only** for the frontend.
-  Lint to the deployment floor: ruff `target-version = py313` (device Path B runs 3.13).
+  Lint to the deployment floor: ruff `target-version = py311` (device Path B runs the Pi's system
+  Python — 3.11 on Bookworm).
 - **Commit per milestone** — verified working states must land in git, not sit in the tree.
 - Ship value early: useful for Moon/planets at **M2+M3**, genuinely useful on stars at **M4**,
   astro-complete at **M5**.
@@ -225,8 +226,8 @@ First improvement pass (the "high-value, low-effort" shortlist from the repo aud
 - **Safe shutdown/reboot from the UI** — `POST /api/system/power` (reboot/poweroff), gated behind
   `PFC_ENABLE_POWER_CONTROLS` (off by default; the deployed unit sets it and `install.sh` adds a
   sudoers rule). Buttons appear in `SystemPanel` only when enabled.
-- **CI** — `.github/workflows/ci.yml`: ruff + pytest on **Python 3.13** (deploy floor, per §9.7) and
-  svelte-check + build.
+- **CI** — `.github/workflows/ci.yml`: ruff + pytest on **Python 3.11** (deploy floor = Bookworm's
+  system Python, per §9.7) and svelte-check + build.
 - **PNG app icons** — purpose-built astro reticle icons (`apple-touch-icon.png`, `icon-192/512`,
   `icon-maskable`) replace the leftover Svelte SVG, so the PWA installs with a real icon on iOS too.
 - **Gallery shows capture settings** — the stored exposure/gain/mode snapshot now renders in the

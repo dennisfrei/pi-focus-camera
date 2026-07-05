@@ -14,9 +14,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      # Test on the DEPLOYMENT floor (Python 3.13, deploy Path B) rather than the dev 3.14, so a
-      # 3.14-only construct fails here instead of on the Pi (CONCEPT §9.7).
-      - run: uv sync --python 3.13
+      # Test on the DEPLOYMENT floor (Python 3.11 = Raspberry Pi OS Bookworm's system Python, deploy
+      # Path B) rather than the dev 3.14, so a newer-only construct fails here not on the Pi (§9.7).
+      - run: uv sync --python 3.11
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run pytest -q
