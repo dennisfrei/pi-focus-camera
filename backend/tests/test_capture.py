@@ -108,6 +108,33 @@ async def test_capture_restores_preview_settings(tmp_path: Path) -> None:
         await manager.stop()
 
 
+async def test_capture_can_be_cancelled(tmp_path: Path) -> None:
+    """A long single capture can be aborted; it returns None and writes no gallery row."""
+    settings = Settings(db_path=tmp_path / "s.db", captures_dir=tmp_path / "caps")
+    await captures.init_db(settings.db_path)
+    manager = CameraManager(settings)
+    await manager.start()
+    try:
+        await manager.apply_settings({"ae_enable": False, "exposure_us": 3_000_000})  # 3 s
+        task = asyncio.create_task(manager.capture())
+        await asyncio.sleep(0.2)
+        assert manager.capture_state["active"] is True
+        assert manager.cancel_capture() is True
+
+        result = await task
+        assert result is None  # cancelled → no record
+        assert manager.capture_state["active"] is False
+        assert await captures.list_captures(manager.db_path) == []  # nothing written
+        assert manager.cancel_capture() is False  # nothing running now
+    finally:
+        await manager.stop()
+
+
+def test_capture_cancel_endpoint_when_idle() -> None:
+    with TestClient(app=app) as client:
+        assert client.post("/api/capture/cancel").json() == {"cancelled": False}
+
+
 async def test_long_exposure_reports_progress(tmp_path: Path) -> None:
     settings = Settings(db_path=tmp_path / "t.db", captures_dir=tmp_path / "caps")
     await captures.init_db(settings.db_path)

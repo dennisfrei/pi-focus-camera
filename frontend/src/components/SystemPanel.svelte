@@ -1,9 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { live, connected } from '../lib/live'
-  import { getSystem, type SystemInfo } from '../lib/api'
+  import { getSystem, powerHost, type SystemInfo } from '../lib/api'
 
   let system = $state<SystemInfo | null>(null)
+
+  async function power(action: 'shutdown' | 'reboot') {
+    if (!confirm(`${action === 'shutdown' ? 'Shut down' : 'Reboot'} the camera now?`)) return
+    await powerHost(action).catch(() => {})
+  }
 
   onMount(() => {
     const load = () =>
@@ -63,6 +68,12 @@
     {#if system.mock}
       <div class="badge">MOCK CAMERA — no hardware</div>
     {/if}
+    {#if system.power_controls}
+      <div class="power">
+        <button onclick={() => power('reboot')}>Reboot</button>
+        <button class="danger" onclick={() => power('shutdown')}>Shut down</button>
+      </div>
+    {/if}
   {/if}
 </section>
 
@@ -87,6 +98,25 @@
   }
   .value {
     font-variant-numeric: tabular-nums;
+  }
+  .power {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.7rem;
+  }
+  .power button {
+    flex: 1;
+    background: transparent;
+    color: var(--fg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 0.4rem;
+    font-size: 0.82rem;
+    cursor: pointer;
+  }
+  .power button.danger {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 50%, transparent);
   }
   .badge {
     margin-top: 0.6rem;

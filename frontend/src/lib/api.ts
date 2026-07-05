@@ -50,10 +50,15 @@ export type SystemInfo = {
   cpu_temp_c: number | null
   uptime_s: number | null
   disk: DiskUsage
+  power_controls: boolean
 }
 
 export function getSystem(): Promise<SystemInfo> {
   return fetchJson<SystemInfo>('/api/system')
+}
+
+export function powerHost(action: 'shutdown' | 'reboot'): Promise<{ action: string }> {
+  return postJson('/api/system/power', { action })
 }
 
 export function startSequence(opts: {
@@ -117,8 +122,14 @@ export type Capture = {
   has_raw: boolean
 }
 
-export function capture(opts: { raw?: boolean; exposure_us?: number }): Promise<Capture> {
+export function capture(
+  opts: { raw?: boolean; exposure_us?: number },
+): Promise<Capture | { cancelled: true }> {
   return postJson('/api/capture', opts)
+}
+
+export async function cancelCapture(): Promise<void> {
+  await postJson('/api/capture/cancel')
 }
 
 export async function listCaptures(): Promise<Capture[]> {

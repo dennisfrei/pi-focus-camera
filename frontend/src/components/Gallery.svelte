@@ -29,6 +29,20 @@
   }
 
   const fmt = (created: number) => new Date(created * 1000).toLocaleString()
+
+  // The settings snapshot stored with each capture — the metadata astro users actually want.
+  function fmtSettings(s: Record<string, number | boolean | string>): string {
+    const parts: string[] = []
+    const us = Number(s.exposure_us)
+    if (s.ae_enable) parts.push('auto exp')
+    else if (us >= 1_000_000) parts.push(`${(us / 1_000_000).toFixed(1)} s`)
+    else if (us >= 1000) parts.push(`${(us / 1000).toFixed(0)} ms`)
+    else if (us) parts.push(`${us} µs`)
+    if (s.gain != null) parts.push(`gain ${Number(s.gain).toFixed(1)}×`)
+    if (s.preview_mode) parts.push(String(s.preview_mode))
+    if (s.raw) parts.push('raw')
+    return parts.join(' · ')
+  }
 </script>
 
 <section class="gallery">
@@ -63,7 +77,10 @@
   <div class="viewer" role="dialog" aria-modal="true" aria-label="Capture {selected.id}">
     <img src={imageUrl(selected.id)} alt="capture {selected.id}" />
     <div class="meta">
-      <span>{fmt(selected.created)} · {selected.width}×{selected.height}</span>
+      <div class="info">
+        <span>{fmt(selected.created)} · {selected.width}×{selected.height}</span>
+        <span class="settings">{fmtSettings(selected.settings)}</span>
+      </div>
       <div class="acts">
         <a class="btn" href={imageUrl(selected.id)} download>Download JPEG</a>
         {#if selected.has_raw}
@@ -170,6 +187,15 @@
     flex-wrap: wrap;
     font-size: 0.8rem;
     color: var(--muted);
+  }
+  .info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+  .settings {
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
   }
   .acts {
     display: flex;

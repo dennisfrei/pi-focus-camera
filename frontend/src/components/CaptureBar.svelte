@@ -1,6 +1,6 @@
 <script lang="ts">
   import { live } from '../lib/live'
-  import { capture } from '../lib/api'
+  import { capture, cancelCapture } from '../lib/api'
   import { bumpCaptures } from '../lib/stores'
 
   // Shutter for a single still. Uses the current exposure/gain; a long exposure pauses the preview
@@ -25,8 +25,8 @@
   async function shoot() {
     error = null
     try {
-      await capture({ raw })
-      bumpCaptures()
+      const result = await capture({ raw })
+      if ('id' in result) bumpCaptures() // skip on a cancelled capture
     } catch {
       error = 'capture failed'
     }
@@ -42,6 +42,7 @@
       </div>
       <div class="track"><div class="fill" style:width="{cap.progress * 100}%"></div></div>
     </div>
+    <button class="cancel" onclick={cancelCapture}>Cancel</button>
   {:else}
     <button class="shutter" onclick={shoot}>{shutterLabel}</button>
     <label class="raw">
@@ -87,6 +88,15 @@
   }
   .progress {
     flex: 1;
+  }
+  .cancel {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
+    border-radius: 8px;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.82rem;
+    cursor: pointer;
   }
   .prow {
     display: flex;

@@ -70,6 +70,7 @@ class CameraManager:
             "exposure_us": 0,
             "raw": False,
         }
+        self._capture_task: asyncio.Task | None = None
 
         # Sequence / intervalometer (M6). N frames × exposure × interval; cancelable.
         self.sequence_state: dict = {
@@ -108,7 +109,31 @@ class CameraManager:
             if self.camera.supports_hw_zoom:
                 self.focus_roi = None
 
-    async def capture(self, raw: bool = False, exposure_us: int | None = None) -> dict:
+    async def capture(self, raw: bool = False, exposure_us: int | None = None) -> dict | None:
+        """Capture a single still, cancelably. Returns the gallery record, or None if cancelled.
+
+        The work runs as a tracked task so ``cancel_capture`` can abort a long exposure (e.g. a
+        mis-framed 200 s sub) without waiting it out. Sequences call :meth:`_do_capture` directly so
+        cancelling one frame doesn't tear down the whole run.
+        """
+        task = asyncio.create_task(self._do_capture(raw, exposure_us))
+        self._capture_task = task
+        try:
+            return await task
+        except asyncio.CancelledError:
+            logger.info("Capture cancelled")
+            return None
+        finally:
+            self._capture_task = None
+
+    def cancel_capture(self) -> bool:
+        """Abort the in-progress single capture; returns whether one was running."""
+        if self._capture_task is not None and not self._capture_task.done():
+            self._capture_task.cancel()
+            return True
+        return False
+
+    async def _do_capture(self, raw: bool, exposure_us: int | None) -> dict:
         """Capture a still (JPEG + optional raw), store it, and return its gallery record.
 
         The lock serializes captures against each other and against mode switches. For a long
@@ -186,7 +211,7 @@ class CameraManager:
         try:
             for i in range(count):
                 self.sequence_state = {**self.sequence_state, "index": i + 1}
-                await self.capture(raw=raw, exposure_us=exposure_us)
+                await self._do_capture(raw=raw, exposure_us=exposure_us)
                 self.sequence_state = {**self.sequence_state, "done": i + 1}
                 if i < count - 1:
                     await asyncio.sleep(interval_s)
@@ -226,11 +251,13 @@ class CameraManager:
             return merged
 
     async def stop(self) -> None:
-        if self._sequence_task is not None:
-            self._sequence_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self._sequence_task
-            self._sequence_task = None
+        for task in (self._sequence_task, self._capture_task):
+            if task is not None:
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
+        self._sequence_task = None
+        self._capture_task = None
         if self._analyze_task is not None:
             self._analyze_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):

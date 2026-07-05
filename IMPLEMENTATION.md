@@ -215,6 +215,31 @@ Also folds the AP SSID/client count into the system panel (needs the AP up).
 
 ---
 
+## Post-v1 improvements — 2026-07-05
+
+First improvement pass (the "high-value, low-effort" shortlist from the repo audit):
+
+- **Cancelable single capture** — `manager.capture()` runs as a tracked task; `cancel_capture()` +
+  `POST /api/capture/cancel` abort a long exposure (Cancel button in `CaptureBar`). Sequences call
+  the internal `_do_capture` so cancelling one frame doesn't tear down the run.
+- **Safe shutdown/reboot from the UI** — `POST /api/system/power` (reboot/poweroff), gated behind
+  `PFC_ENABLE_POWER_CONTROLS` (off by default; the deployed unit sets it and `install.sh` adds a
+  sudoers rule). Buttons appear in `SystemPanel` only when enabled.
+- **CI** — `.github/workflows/ci.yml`: ruff + pytest on **Python 3.13** (deploy floor, per §9.7) and
+  svelte-check + build.
+- **PNG app icons** — purpose-built astro reticle icons (`apple-touch-icon.png`, `icon-192/512`,
+  `icon-maskable`) replace the leftover Svelte SVG, so the PWA installs with a real icon on iOS too.
+- **Gallery shows capture settings** — the stored exposure/gain/mode snapshot now renders in the
+  full-view meta line.
+- **Pinned Pi deps** — `install.sh` installs the exact `uv.lock` versions (via `uv export`) instead
+  of a fresh resolve.
+
+The remaining audit items (idle-pause of the analyze loop / encoder, smaller lores stream, WS
+payload dedup, gallery pagination, the V-curve focus tracker) are the next pass — several are best
+validated during the hardware session.
+
+---
+
 ## Known issues — code review 2026-07-04
 
 Full-branch review (M0–M7), **all 10 findings fixed 2026-07-04** (commit follows the review).

@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     # Force the mock camera even if picamera2 is importable (useful for dev on the Pi).
     force_mock: bool = False
 
+    # Allow the UI to shut down / reboot the host. Off by default so a dev box can't be powered off
+    # by mistake; install.sh turns it on for the deployed Pi (and adds the sudoers rule it needs).
+    enable_power_controls: bool = False
+
     captures_dir: Path = Path("captures")
     db_path: Path = Path("astrocam.db")
 

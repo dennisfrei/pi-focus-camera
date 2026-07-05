@@ -38,13 +38,17 @@ Poe tasks (defined in `backend/pyproject.toml`):
 |------|--------------|
 | `uv run poe dev` | dev server with auto-reload, port 8080 |
 | `uv run poe serve` | production server (no reload) |
-| `uv run poe test` | pytest (41 tests, all mock-driven — no hardware needed) |
+| `uv run poe test` | pytest (49 tests, all mock-driven — no hardware needed) |
 | `uv run poe lint` | ruff check |
 | `uv run poe format` | ruff format |
 
 The Pi camera stack (`picamera2` etc.) is deliberately **not** in `pyproject.toml` — it doesn't
 resolve on a dev box. It lives in `backend/requirements-pi.txt` (deploy Path A) or comes from apt
 (Path B); see §4.
+
+**CI** (`.github/workflows/ci.yml`) runs ruff + the pytest suite on **Python 3.13** (the deployment
+floor) and svelte-check + the frontend build on every push/PR — so a 3.14-only construct fails in CI
+rather than on the Pi.
 
 ### Frontend
 
@@ -91,6 +95,7 @@ Everything has a sensible default — a bare checkout runs with zero config.
 | `PFC_HOST` | `0.0.0.0` | Bind address |
 | `PFC_PORT` | `8080` | Bind port |
 | `PFC_FORCE_MOCK` | `false` | Use the mock camera even if `picamera2` imports — useful for demos/dev on a Pi |
+| `PFC_ENABLE_POWER_CONTROLS` | `false` | Show the in-app **Shut down / Reboot** buttons and honor them. Off by default so a dev box can't be powered off by mistake; `install.sh` sets it and adds the sudoers rule on the Pi |
 | `PFC_CAPTURES_DIR` | `captures` | Where captured JPEG/raw/thumbnails are written (relative to the backend working dir). **Point at a USB drive for real sessions** — raw files are large |
 | `PFC_DB_PATH` | `astrocam.db` | SQLite file holding presets + capture metadata. The DB stores only file *basenames*, so the captures dir can be relocated |
 | `PFC_PREVIEW_WIDTH` / `PFC_PREVIEW_HEIGHT` | `1280` / `720` | Preview stream resolution for the real camera |
@@ -202,6 +207,11 @@ sudo systemctl restart astrocam  # after config changes
 
 Configuration for the service: put a `.env` next to `backend/pyproject.toml` (the unit's
 `WorkingDirectory` is `backend/`), e.g. `PFC_CAPTURES_DIR=/mnt/usb/captures`, then restart.
+
+The system panel's **Shut down / Reboot** buttons (enabled on the Pi via
+`PFC_ENABLE_POWER_CONTROLS`, with a sudoers rule `install.sh` installs) let you power the camera
+down cleanly from the phone instead of pulling the plug — do this before disconnecting power to
+avoid SD-card corruption.
 
 ### 4.5 Updating
 

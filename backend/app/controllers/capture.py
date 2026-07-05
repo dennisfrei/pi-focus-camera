@@ -22,4 +22,11 @@ class CaptureRequest(BaseModel):
 @post("/api/capture")
 async def capture(request: Request, data: CaptureRequest) -> dict:
     manager = request.app.state.manager
-    return await manager.capture(raw=data.raw, exposure_us=data.exposure_us)
+    record = await manager.capture(raw=data.raw, exposure_us=data.exposure_us)
+    return record if record is not None else {"cancelled": True}
+
+
+@post("/api/capture/cancel")
+async def cancel_capture(request: Request) -> dict:
+    manager = request.app.state.manager
+    return {"cancelled": manager.cancel_capture()}

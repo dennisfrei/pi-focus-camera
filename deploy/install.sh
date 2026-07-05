@@ -28,7 +28,13 @@ fi
 echo "==> Backend venv (Path B: system-site-packages so it sees apt's picamera2)"
 cd "$APP_DIR/backend"
 uv venv --system-site-packages --python /usr/bin/python3
-uv pip install -e .
+# Install the exact locked versions (uv.lock) rather than a fresh resolve, then the project itself.
+# --no-hashes keeps it working across architectures (the Pi pulls its own aarch64 wheels).
+REQ="$(mktemp)"
+uv export --no-dev --no-emit-project --frozen --no-hashes -o "$REQ"
+uv pip install -r "$REQ"
+uv pip install -e . --no-deps
+rm -f "$REQ"
 
 echo "==> Frontend build"
 if command -v npm >/dev/null 2>&1; then
@@ -39,6 +45,12 @@ else
   echo "   npm not found — skipping frontend build. Build it elsewhere and copy dist/ into"
   echo "   backend/app/static/, or install nodejs and re-run."
 fi
+
+echo "==> Allowing the service user to power off / reboot (for the in-app buttons)"
+SUDOERS=/etc/sudoers.d/astrocam-power
+printf '%s ALL=(root) NOPASSWD: /sbin/shutdown, /usr/sbin/shutdown, /sbin/reboot, /usr/sbin/reboot\n' \
+  "$RUN_USER" | sudo tee "$SUDOERS" >/dev/null
+sudo chmod 440 "$SUDOERS"
 
 echo "==> mDNS (astrocam.local)"
 bash "$APP_DIR/deploy/setup-mdns.sh"

@@ -9,6 +9,8 @@ Type=simple
 # __USER__ and __APP_DIR__ are filled in by deploy/install.sh from the actual checkout.
 User=__USER__
 WorkingDirectory=__APP_DIR__/backend
+# Enable the in-app shutdown/reboot buttons (install.sh adds the matching sudoers rule).
+Environment=PFC_ENABLE_POWER_CONTROLS=true
 ExecStart=__APP_DIR__/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8080
 Restart=on-failure
 RestartSec=3

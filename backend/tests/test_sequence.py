@@ -85,6 +85,14 @@ def test_sequence_endpoints() -> None:
         assert client.post("/api/sequence/cancel").json()["cancelled"] is True
 
 
+def test_power_controls_disabled_by_default() -> None:
+    """Power off/reboot must be refused (403) unless explicitly enabled, and bad actions are 400."""
+    with TestClient(app=app, raise_server_exceptions=False) as client:
+        assert client.get("/api/system").json()["power_controls"] is False
+        assert client.post("/api/system/power", json={"action": "shutdown"}).status_code == 403
+        assert client.post("/api/system/power", json={"action": "melt"}).status_code == 400
+
+
 def test_system_metrics_shape() -> None:
     # The values may be None on a non-Pi dev box, but the keys and disk shape must be present.
     assert system.disk_usage(Path("/")).keys() == {"total", "used", "free"}

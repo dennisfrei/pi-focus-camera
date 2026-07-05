@@ -21,7 +21,7 @@ from . import __version__
 from .camera.manager import CameraManager
 from .config import settings
 from .controllers.camera import get_settings, update_settings
-from .controllers.capture import capture
+from .controllers.capture import cancel_capture, capture
 from .controllers.focus import get_focus, set_focus_mode, set_focus_roi, set_focus_zoom
 from .controllers.gallery import (
     delete_capture,
@@ -34,7 +34,7 @@ from .controllers.live_ws import live
 from .controllers.presets import apply_preset, delete_preset, list_presets, save_preset
 from .controllers.sequence import cancel_sequence, start_sequence
 from .controllers.stream import stream
-from .controllers.system import health, system_info
+from .controllers.system import health, power, system_info
 from .storage import captures, presets
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -82,6 +82,7 @@ app = Litestar(
         live,
         health,
         system_info,
+        power,
         get_settings,
         update_settings,
         list_presets,
@@ -93,6 +94,7 @@ app = Litestar(
         set_focus_mode,
         set_focus_zoom,
         capture,
+        cancel_capture,
         start_sequence,
         cancel_sequence,
         list_gallery,
