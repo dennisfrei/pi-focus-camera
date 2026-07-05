@@ -85,18 +85,16 @@ focuser through focus and confirm:
 - **HFD V-curve** — the HFD number dips to a clean minimum at focus and rises either side; **peak**
   rises to a maximum at focus. (Synthetic tests prove the math; only a real star proves the optics
   loop.)
-- **1:1 zoom** — the "Zoom 1:1" button (shown because hardware reports `supports_hw_zoom`) crops the
-  sensor via `ScalerCrop` and shows **actual sensor pixels**, not an upscaled preview.
+- **1:1 zoom** ✅ *confirmed on hardware 2026-07-05* — the "Zoom 1:1" button crops the sensor via
+  `ScalerCrop` and shows actual sensor pixels. The `_set_zoom_sync` mapping via `ScalerCropMaximum`
+  works.
 
 **Most likely to need attention:**
-- **Luma plane** — `get_luma()` does `capture_array("lores")[:h, :w]` assuming YUV420 Y occupies the
-  first `h` rows. Confirm the shape/stride on your sensor; the focus metric reads this every tick
-  **from the analyze worker thread** while the encoder runs — watch for contention or tearing.
-- **`ScalerCrop` mapping** — `_full_crop()` uses `ScalerCropMaximum` (falls back to
-  `PixelArraySize`); `_set_zoom_sync` maps the normalized ROI into that rectangle. The exact
-  reference rectangle and orientation are the classic picamera2 gotcha — verify the zoom lands where
-  you drew the ROI. Note the manager **clears the focus ROI when hw-zoom engages** (so the metric
-  measures the whole cropped frame, not a crop-of-a-crop) — confirm that feels right.
+- **Luma plane** — the dedicated `lores` luma stream was **dropped** on hardware (its `make_array`
+  returned mismatched luma and it destabilized the pipeline); focus now decodes the main preview
+  JPEG (`get_luma()` returns None → manager falls back to `focus.analyze(jpeg)`). Revisit a correct
+  lores implementation only if the JPEG-decode focus proves inadequate.
+- The **HFD V-curve on a real star** is the one remaining M4 check (needs a clear sky).
 
 ---
 
@@ -106,18 +104,16 @@ focuser through focus and confirm:
 countdown and "preview paused", then preview **resumes**; **raw** produces a real **DNG**;
 **Cancel** aborts a long exposure; frame-type (light/dark/flat/bias) tags the file.
 
-**Most likely to need attention** (`_capture_sync`, all untested):
-- The sequence stop_recording → `create_still_configuration(raw={} if raw)` → `configure` → `start`
-  → `capture_request` → `make_image("main")` → `save_dng(tempfile)` → **restore preview via
-  `_start_sync`** is a lot of picamera2 API surface. Expect to adjust method names/args.
-- **Post-capture restore (code-review fix #1).** After the still, `manager._do_capture` re-applies
-  `to_controls(settings)` + the tracked zoom. **Confirm the preview comes back in the same mode**
-  (star cadence / manual exposure / zoom), not default 30 fps auto — this was the subtlest bug and
-  only shows on hardware.
-- **"Capture (auto)"** — with AE on, the still must actually auto-meter (the driver passes
-  `AeEnable=True`); with AE off it locks the manual exposure. Verify a dim target isn't captured at
-  the stale 20 ms default.
-- **DNG size/validity** — open a raw in Siril/DSS to confirm it's a real sensor DNG, not the JPEG.
+**Status:** ✅ *JPEG + DNG capture confirmed on hardware 2026-07-05.* The `_capture_sync` path
+(stop_recording → still config → capture_request → `make_image` → `save_dng` → restore preview) works.
+Two gotchas were fixed on the Pi: (a) a **picamera2/pidng version skew** made `save_dng` throw —
+`install.sh` now installs a newer `pidng --no-deps`; (b) a failed capture used to wedge the camera
+(configure-while-running) — now it always stops before restoring and the DNG is best-effort.
+
+**Still to confirm on the sky / at leisure:**
+- **DNG validity** — open a raw in Siril/DSS to confirm it's a real sensor DNG.
+- **Long-exposure UX** — a multi-second capture shows the countdown / "preview paused" and resumes.
+- **Post-capture restore** — the preview returns in the same mode after a capture.
 
 ---
 
