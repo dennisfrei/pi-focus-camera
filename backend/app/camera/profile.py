@@ -66,6 +66,33 @@ def _control(raw: dict[str, tuple[Any, Any, Any]], name: str, fallback: Control)
     return Control(min=lo, max=hi, default=default)
 
 
+def _widen_exposure_from_modes(picam2: _Picamera2Like, exposure: Control) -> Control:
+    """Use the sensor's true exposure range from ``sensor_modes``.
+
+    The *unconfigured* ``camera_controls['ExposureTime']`` max only reflects the current sensor
+    mode's frame duration — on the IMX219 that's ~66 ms, not the sensor's real ~11.76 s ceiling.
+    Each entry in ``sensor_modes`` carries an ``exposure_limits`` (min, max) in µs; take the widest.
+    """
+    modes = getattr(picam2, "sensor_modes", None) or []
+    los: list[float] = []
+    his: list[float] = []
+    for mode in modes:
+        limits = mode.get("exposure_limits") if isinstance(mode, dict) else None
+        if not limits:
+            continue
+        if limits[0] is not None:
+            los.append(float(limits[0]))
+        if len(limits) > 1 and limits[1] is not None:
+            his.append(float(limits[1]))
+    if not his:
+        return exposure
+    # Never report a *narrower* range than camera_controls already claims.
+    hi = max([*his, exposure.max])
+    lo = min([*los, exposure.min]) if los else exposure.min
+    default = exposure.default if lo <= exposure.default <= hi else (lo + hi) / 2
+    return Control(min=lo, max=hi, default=default)
+
+
 def build_profile(picam2: _Picamera2Like, resolution: tuple[int, int]) -> CameraProfile:
     """Derive a :class:`CameraProfile` from a live picamera2 instance.
 
@@ -76,6 +103,7 @@ def build_profile(picam2: _Picamera2Like, resolution: tuple[int, int]) -> Camera
     props = picam2.camera_properties
 
     exposure = _control(controls, "ExposureTime", Control(100.0, 11_760_000.0, 20_000.0))
+    exposure = _widen_exposure_from_modes(picam2, exposure)
     gain = _control(controls, "AnalogueGain", Control(1.0, 16.0, 1.0))
 
     model = str(props.get("Model", "Raspberry Pi Camera"))

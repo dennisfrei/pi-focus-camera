@@ -8,14 +8,21 @@ from app.config import settings
 
 
 class FakeImx219:
-    """Mimics the picamera2 attributes we read, with IMX219 (Camera Module V2) values."""
+    """Mimics the picamera2 attributes we read, with IMX219 (Camera Module V2) values.
+
+    Reproduces the real-hardware quirk: the *unconfigured* ExposureTime max is short (the current
+    mode's ~66 ms frame duration); the true ~11.76 s ceiling only lives in sensor_modes.
+    """
 
     camera_controls = {
-        "ExposureTime": (75, 11_766_018, 20_000),
+        "ExposureTime": (75, 66_666, 20_000),  # short, mode-dependent (the observed probe value)
         "AnalogueGain": (1.0, 16.0, None),  # libcamera may report None for the default
     }
     camera_properties = {"Model": "imx219", "PixelArraySize": (3280, 2464)}
-    sensor_modes = [{"bit_depth": 10}]
+    sensor_modes = [
+        {"bit_depth": 10, "size": (1640, 1232), "exposure_limits": (75, 11_766_018)},
+        {"bit_depth": 8, "size": (3280, 2464), "exposure_limits": (75, 11_766_018)},
+    ]
 
 
 def test_build_profile_reads_sensor_limits() -> None:
@@ -24,6 +31,7 @@ def test_build_profile_reads_sensor_limits() -> None:
     assert profile.is_mock is False
     assert profile.resolution == (1280, 720)
     assert profile.max_resolution == (3280, 2464)
+    # The true ceiling comes from sensor_modes' exposure_limits, not the short camera_controls max.
     assert profile.exposure_us.max == 11_766_018  # ~11.8 s, the V2 ceiling
     assert profile.supports_raw is True
 

@@ -48,6 +48,9 @@ picamera2 install caveat). Milestone context is in [IMPLEMENTATION.md](IMPLEMENT
   `loop.call_soon_threadsafe`. Confirm frames actually flow (the preview isn't black/frozen).
 - `build_profile` (`profile.py`) reads `camera_controls`/`camera_properties`/`sensor_modes`. Compare
   its JSON against `rpicam-hello`/known IMX219 values; adjust fallbacks if libcamera reports `None`s.
+  *(Confirmed on hardware 2026-07-05: the IMX219 probes as `imx219`, gain 1–16, raw+hw-zoom True. The
+  unconfigured `ExposureTime` max was a short 66 ms — `build_profile` now widens it from
+  `sensor_modes['exposure_limits']` to the real ~11.76 s.)*
 
 **If the preview is black on the sky** that's expected — it's a ~33 ms exposure. Switch to **Star**
 preview (§3) with raised gain.
@@ -64,6 +67,14 @@ the frame stops auto-brightening); **Star preview** drops the stream to ~1 fps w
 - **Long manual exposure in *Normal* mode.** `settings.to_controls` now raises the
   `FrameDurationLimits` ceiling to fit a manual exposure > ~33 ms. Set e.g. 2 s in Normal mode and
   confirm the sensor actually integrates 2 s (not silently clamped). Star mode should also work.
+- **⚠ Likely fix needed — long exposures in the *preview*.** libcamera only allows a long
+  `ExposureTime` if the *video configuration's* `FrameDurationLimits` permits it. Our driver sets
+  `FrameDurationLimits` at runtime via `set_controls` (in `to_controls`), **not** in
+  `create_video_configuration` (`picamera2_driver._start_sync`). On some picamera2 versions the
+  runtime value is clamped to the mode's default, so a 2 s / star-preview exposure won't actually
+  take. If you see that, pass a wide `controls={"FrameDurationLimits": (min, sensor_max)}` (and
+  possibly a raw stream size that selects the long-exposure sensor mode) into
+  `create_video_configuration`. This is the most likely on-Pi driver tweak.
 - All control changes run under the manager lock; a slider drag now commits once on release.
 
 ---
