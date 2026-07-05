@@ -18,12 +18,14 @@ picamera2 install caveat). Milestone context is in [IMPLEMENTATION.md](IMPLEMENT
    (`uv sync --extra pi`) compiles `rpi-libcamera` from source against the system libcamera and is
    fragile; only use it if you specifically want to stay on Python 3.14 (needs
    `apt install -y libcap-dev cmake libcamera-dev` first). See CONCEPT §7.
-3. Quick check without the service: from `backend/`, `uv run python scripts/probe_camera.py` should
-   print the detected `CameraProfile` as JSON. **This is the fastest signal that the driver imports,
-   the sensor is found, and `build_profile` reads sane values.**
-4. Run it: `uv run poe serve` (or the installed `astrocam.service`), open the page, watch the log —
-   `picamera2 available — using Picamera2Camera` means you're on real hardware;
-   `Falling back to MockCamera` means it isn't (check the reason in the log line).
+3. Quick check without the service: from `backend/`, `.venv/bin/python scripts/probe_camera.py`
+   should print the detected `CameraProfile` as JSON. **This is the fastest signal that the driver
+   imports, the sensor is found, and `build_profile` reads sane values.**
+   ⚠️ On Path B, **run via `.venv/bin/…`, not `uv run`** — `uv run`/`uv sync` recreate `.venv` on the
+   pinned 3.14 without `--system-site-packages` and lose picamera2 (see MANUAL §4.1).
+4. Run it: `.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8080` (or the installed
+   `astrocam.service`), open the page, watch the log — `picamera2 available — using Picamera2Camera`
+   means you're on real hardware; `Falling back to MockCamera` means it isn't (check the reason).
 
 > The whole `app/camera/picamera2_driver.py` is the **only module never executed** in dev. Treat §1–§5
 > below as "verify this driver," in dependency order.

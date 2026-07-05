@@ -157,11 +157,17 @@ exact libcamera version).
   rm -rf .venv                                               # if you already made a 3.14 venv
   uv venv --system-site-packages --python /usr/bin/python3   # venv that can see apt packages
   uv pip install -e .                                        # app + core deps; picamera2 from apt
-  uv run python scripts/probe_camera.py                      # verify: prints the CameraProfile
+  .venv/bin/python scripts/probe_camera.py                   # verify: prints the CameraProfile
   ```
   This pins only the **on-device** interpreter (3.11 on Bookworm, 3.13 on Trixie); dev stays on 3.14.
-  The code's floor is `requires-python >=3.11` and ruff lints to `py311`, so nothing newer sneaks in.
   No `--extra pi` needed — picamera2 comes from the apt packages, so nothing is compiled.
+
+  > ⚠️ **On the Pi with Path B, run the app via the venv directly — never `uv run` / `uv sync`.**
+  > Those are project-aware: they see `.python-version` (3.14) and **recreate `.venv` on 3.14
+  > without `--system-site-packages`**, which loses picamera2. Use `.venv/bin/python`,
+  > `.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8080`, or `source .venv/bin/activate`
+  > first. (`uv pip install` is fine — it targets the venv as-is; the systemd unit already calls
+  > `.venv/bin/uvicorn` directly.)
 - **Path A — pip stack, keeps uv's Python 3.14 (fragile):**
   ```bash
   sudo apt install -y libcap-dev cmake libcamera-dev   # build deps: python-prctl + rpi-libcamera
