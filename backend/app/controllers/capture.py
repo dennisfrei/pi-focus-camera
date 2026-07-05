@@ -21,7 +21,9 @@ class CaptureRequest(BaseModel):
         ge=1,
         description="Exposure in microseconds; defaults to the current manual exposure setting.",
     )
-    frame_type: FrameType = "light"  # light / dark / flat / bias — recorded for the stacking pipeline
+    frame_type: FrameType = (
+        "light"  # light / dark / flat / bias — recorded for the stacking pipeline
+    )
 
 
 @post("/api/capture")
