@@ -7,7 +7,6 @@ from litestar.testing import TestClient
 from app.camera import settings as camsettings
 from app.camera.profile import CameraProfile, Control
 from app.camera.settings import CameraSettings
-from app.main import app
 
 PROFILE = CameraProfile(
     model="test",
@@ -70,36 +69,28 @@ def test_star_mode_has_a_floor_even_on_auto() -> None:
     assert controls["FrameDurationLimits"][0] >= 500_000
 
 
-def test_patch_endpoint_clamps_and_persists() -> None:
-    with TestClient(app=app) as client:
-        # Out-of-range gain is clamped to the mock's 16x ceiling, unknown keys dropped.
-        resp = client.patch("/api/camera/settings", json={"gain": 999.0, "nope": 1})
-        body = resp.json()["settings"]
-        assert body["gain"] == 16.0
-        # A follow-up GET returns the same clamped value.
-        assert client.get("/api/camera/settings").json()["settings"]["gain"] == 16.0
+def test_patch_endpoint_clamps_and_persists(client: TestClient) -> None:
+    # Out-of-range gain is clamped to the mock's 16x ceiling, unknown keys dropped.
+    resp = client.patch("/api/camera/settings", json={"gain": 999.0, "nope": 1})
+    assert resp.json()["settings"]["gain"] == 16.0
+    # A follow-up GET returns the same clamped value.
+    assert client.get("/api/camera/settings").json()["settings"]["gain"] == 16.0
 
 
-def test_patch_star_mode_switch() -> None:
-    with TestClient(app=app) as client:
-        resp = client.patch("/api/camera/settings", json={"preview_mode": "star"})
-        assert resp.json()["settings"]["preview_mode"] == "star"
-        client.patch("/api/camera/settings", json={"preview_mode": "normal"})  # restore
+def test_patch_star_mode_switch(client: TestClient) -> None:
+    resp = client.patch("/api/camera/settings", json={"preview_mode": "star"})
+    assert resp.json()["settings"]["preview_mode"] == "star"
 
 
-def test_patch_rejects_bad_input_with_400() -> None:
+def test_patch_rejects_bad_input_with_400(client: TestClient) -> None:
     """Wrong types / unknown enum values are a 400, not a 500 or a silently-stored bad value."""
-    with TestClient(app=app, raise_server_exceptions=False) as client:
-        assert client.patch("/api/camera/settings", json={"gain": "abc"}).status_code == 400
-        assert client.patch("/api/camera/settings", json={"exposure_us": "oops"}).status_code == 400
-        assert (
-            client.patch("/api/camera/settings", json={"preview_mode": "bogus"}).status_code == 400
-        )
-        # A valid partial update still works and unknown keys are ignored.
-        ok = client.patch("/api/camera/settings", json={"gain": 4.0, "nope": 1})
-        assert ok.status_code == 200
-        assert ok.json()["settings"]["gain"] == 4.0
-        client.patch("/api/camera/settings", json={"gain": 1.0})
+    assert client.patch("/api/camera/settings", json={"gain": "abc"}).status_code == 400
+    assert client.patch("/api/camera/settings", json={"exposure_us": "oops"}).status_code == 400
+    assert client.patch("/api/camera/settings", json={"preview_mode": "bogus"}).status_code == 400
+    # A valid partial update still works and unknown keys are ignored.
+    ok = client.patch("/api/camera/settings", json={"gain": 4.0, "nope": 1})
+    assert ok.status_code == 200
+    assert ok.json()["settings"]["gain"] == 4.0
 
 
 def test_normal_mode_long_manual_exposure_raises_frame_duration() -> None:

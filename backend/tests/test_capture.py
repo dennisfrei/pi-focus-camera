@@ -17,7 +17,6 @@ from PIL import Image
 from app.camera.base import CaptureResult
 from app.camera.manager import CameraManager
 from app.config import Settings
-from app.main import app
 from app.storage import captures
 
 
@@ -53,40 +52,33 @@ async def test_storage_write_and_crud(tmp_path: Path) -> None:
     assert await captures.delete_capture(db, capture_id) is None  # already gone
 
 
-def test_capture_endpoint_roundtrip() -> None:
-    with TestClient(app=app) as client:
-        created = client.post("/api/capture", json={"raw": False, "exposure_us": 15000}).json()
-        cid = created["id"]
-        try:
-            assert created["width"] > 0 and created["height"] > 0
-            assert created["has_raw"] is False
+def test_capture_endpoint_roundtrip(client: TestClient) -> None:
+    created = client.post("/api/capture", json={"raw": False, "exposure_us": 15000}).json()
+    cid = created["id"]
+    assert created["width"] > 0 and created["height"] > 0
+    assert created["has_raw"] is False
 
-            listing = client.get("/api/gallery").json()["captures"]
-            assert any(c["id"] == cid for c in listing)
+    listing = client.get("/api/gallery").json()["captures"]
+    assert [c["id"] for c in listing] == [cid]
 
-            assert client.get(f"/api/gallery/{cid}/thumb").status_code == 200
-            img = client.get(f"/api/gallery/{cid}/image")
-            assert img.status_code == 200
-            assert img.headers["content-type"] == "image/jpeg"
-            # No raw was requested.
-            assert client.get(f"/api/gallery/{cid}/raw").status_code == 404
-        finally:
-            assert client.delete(f"/api/gallery/{cid}").status_code == 200
-        # Gone afterwards.
-        assert client.get(f"/api/gallery/{cid}/image").status_code == 404
+    assert client.get(f"/api/gallery/{cid}/thumb").status_code == 200
+    img = client.get(f"/api/gallery/{cid}/image")
+    assert img.status_code == 200
+    assert img.headers["content-type"] == "image/jpeg"
+    # No raw was requested.
+    assert client.get(f"/api/gallery/{cid}/raw").status_code == 404
+
+    assert client.delete(f"/api/gallery/{cid}").status_code == 200
+    assert client.get(f"/api/gallery/{cid}/image").status_code == 404  # gone afterwards
 
 
-def test_capture_with_raw() -> None:
-    with TestClient(app=app) as client:
-        created = client.post("/api/capture", json={"raw": True, "exposure_us": 15000}).json()
-        cid = created["id"]
-        try:
-            assert created["has_raw"] is True
-            raw = client.get(f"/api/gallery/{cid}/raw")
-            assert raw.status_code == 200
-            assert "attachment" in raw.headers.get("content-disposition", "")
-        finally:
-            client.delete(f"/api/gallery/{cid}")
+def test_capture_with_raw(client: TestClient) -> None:
+    created = client.post("/api/capture", json={"raw": True, "exposure_us": 15000}).json()
+    cid = created["id"]
+    assert created["has_raw"] is True
+    raw = client.get(f"/api/gallery/{cid}/raw")
+    assert raw.status_code == 200
+    assert "attachment" in raw.headers.get("content-disposition", "")
 
 
 async def test_capture_restores_preview_settings(tmp_path: Path) -> None:
@@ -130,9 +122,8 @@ async def test_capture_can_be_cancelled(tmp_path: Path) -> None:
         await manager.stop()
 
 
-def test_capture_cancel_endpoint_when_idle() -> None:
-    with TestClient(app=app) as client:
-        assert client.post("/api/capture/cancel").json() == {"cancelled": False}
+def test_capture_cancel_endpoint_when_idle(client: TestClient) -> None:
+    assert client.post("/api/capture/cancel").json() == {"cancelled": False}
 
 
 async def test_long_exposure_reports_progress(tmp_path: Path) -> None:

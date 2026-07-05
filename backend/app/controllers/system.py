@@ -16,8 +16,6 @@ from litestar import Request, get, post
 from litestar.exceptions import PermissionDeniedException
 from pydantic import BaseModel
 
-from ..config import settings
-
 
 def cpu_temp_c() -> float | None:
     try:
@@ -61,7 +59,7 @@ async def system_info(request: Request) -> dict:
         "cpu_temp_c": cpu_temp_c(),
         "uptime_s": uptime_s(),
         "disk": disk_usage(manager.captures_dir),
-        "power_controls": settings.enable_power_controls,
+        "power_controls": request.app.state.settings.enable_power_controls,
     }
 
 
@@ -79,7 +77,7 @@ _POWER_COMMANDS = {
 
 @post("/api/system/power")
 async def power(request: Request, data: PowerRequest) -> dict:
-    if not settings.enable_power_controls:
+    if not request.app.state.settings.enable_power_controls:
         raise PermissionDeniedException(
             detail="power controls are disabled (PFC_ENABLE_POWER_CONTROLS)"
         )

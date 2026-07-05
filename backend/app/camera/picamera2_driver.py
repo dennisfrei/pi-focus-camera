@@ -50,7 +50,6 @@ class Picamera2Camera:
     def __init__(self, width: int = 1280, height: int = 720) -> None:
         self._w = width
         self._h = height
-        self.supports_hw_zoom = True
         self._picam2 = Picamera2()  # raises if no camera present -> manager falls back to mock
         self.profile: CameraProfile = build_profile(self._picam2, (width, height))
         logger.info(

@@ -36,7 +36,6 @@ class MockCamera:
             supports_raw=True,
             is_mock=True,
         )
-        self.supports_hw_zoom = False  # no sensor to crop — the UI uses a CSS zoom instead
         self._controls: dict = {"ExposureTime": 20_000, "AnalogueGain": 1.0}
         self._broker: FrameBroker | None = None
         self._task: asyncio.Task | None = None

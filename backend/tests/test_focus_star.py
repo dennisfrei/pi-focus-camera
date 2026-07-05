@@ -12,7 +12,6 @@ from litestar.testing import TestClient
 
 from app.camera import focus
 from app.camera.mock import MockCamera
-from app.main import app
 
 
 def _gaussian_star(
@@ -72,36 +71,31 @@ def test_mock_synthesizes_a_luma_plane() -> None:
     luma = cam.get_luma()
     assert luma is not None
     assert luma.shape == (150, 200)  # (h, w), 2D grayscale — not a decoded JPEG
-    assert cam.supports_hw_zoom is False
+    assert cam.profile.supports_hw_zoom is False  # single source of truth: the profile
 
 
-def test_focus_mode_endpoint_switches_metric() -> None:
-    with TestClient(app=app) as client:
-        # Star is the night default.
-        assert client.get("/api/focus").json()["mode"] == "star"
+def test_focus_mode_endpoint_switches_metric(client: TestClient) -> None:
+    # Star is the night default.
+    assert client.get("/api/focus").json()["mode"] == "star"
 
-        assert client.post("/api/focus/mode", json={"mode": "scene"}).json()["mode"] == "scene"
-        assert client.get("/api/focus").json()["mode"] == "scene"
+    assert client.post("/api/focus/mode", json={"mode": "scene"}).json()["mode"] == "scene"
+    assert client.get("/api/focus").json()["mode"] == "scene"
 
-        # An unknown mode is rejected by validation.
-        assert client.post("/api/focus/mode", json={"mode": "bogus"}).status_code == 400
-
-        client.post("/api/focus/mode", json={"mode": "star"})  # restore default
+    # An unknown mode is rejected by validation.
+    assert client.post("/api/focus/mode", json={"mode": "bogus"}).status_code == 400
 
 
-def test_zoom_endpoint_is_noop_on_mock() -> None:
-    with TestClient(app=app) as client:
-        resp = client.post("/api/focus/zoom", json={"roi": [0.4, 0.4, 0.6, 0.6]})
-        body = resp.json()
-        assert body["roi"] == [0.4, 0.4, 0.6, 0.6]
-        assert body["hw_zoom"] is False  # mock has no sensor to crop
-        assert client.post("/api/focus/zoom", json={"roi": None}).json()["roi"] is None
+def test_zoom_endpoint_is_noop_on_mock(client: TestClient) -> None:
+    resp = client.post("/api/focus/zoom", json={"roi": [0.4, 0.4, 0.6, 0.6]})
+    body = resp.json()
+    assert body["roi"] == [0.4, 0.4, 0.6, 0.6]
+    assert body["hw_zoom"] is False  # mock has no sensor to crop
+    assert client.post("/api/focus/zoom", json={"roi": None}).json()["roi"] is None
 
 
-def test_live_ws_carries_star_metrics() -> None:
-    with TestClient(app=app) as client:
-        with client.websocket_connect("/api/live") as ws:
-            msg = ws.receive_json()
-            assert msg["focus_mode"] in ("star", "scene")
-            assert "hfd" in msg
-            assert "focus_direction" in msg
+def test_live_ws_carries_star_metrics(client: TestClient) -> None:
+    with client.websocket_connect("/api/live") as ws:
+        msg = ws.receive_json()
+        assert msg["focus_mode"] in ("star", "scene")
+        assert "hfd" in msg
+        assert "focus_direction" in msg

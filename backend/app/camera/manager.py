@@ -45,7 +45,9 @@ class CameraManager:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
         self.db_path = settings.db_path
-        self.camera: Camera = select_camera(settings)
+        # The driver is built in start() (off the event loop) — constructing Picamera2 on hardware
+        # blocks for a moment, which we don't want to do synchronously during app startup.
+        self._camera: Camera | None = None
         self.broker = FrameBroker()
         self.lock = asyncio.Lock()  # serializes captures / mode switches against the preview
         self.started = False
@@ -77,12 +79,17 @@ class CameraManager:
             "active": False,
             "count": 0,
             "done": 0,
-            "index": 0,
             "interval_s": 0.0,
             "exposure_us": 0,
             "raw": False,
         }
         self._sequence_task: asyncio.Task | None = None
+
+    @property
+    def camera(self) -> Camera:
+        if self._camera is None:
+            raise RuntimeError("camera manager not started")
+        return self._camera
 
     @property
     def profile(self) -> CameraProfile:
@@ -106,7 +113,7 @@ class CameraManager:
         async with self.lock:
             await self.camera.set_zoom(roi)
             self._zoom_roi = roi
-            if self.camera.supports_hw_zoom:
+            if self.profile.supports_hw_zoom:
                 self.focus_roi = None
 
     async def capture(self, raw: bool = False, exposure_us: int | None = None) -> dict | None:
@@ -197,7 +204,6 @@ class CameraManager:
             "active": True,
             "count": count,
             "done": 0,
-            "index": 0,
             "interval_s": interval_s,
             "exposure_us": exp,
             "raw": raw,
@@ -210,7 +216,6 @@ class CameraManager:
     ) -> None:
         try:
             for i in range(count):
-                self.sequence_state = {**self.sequence_state, "index": i + 1}
                 await self._do_capture(raw=raw, exposure_us=exposure_us)
                 self.sequence_state = {**self.sequence_state, "done": i + 1}
                 if i < count - 1:
@@ -228,6 +233,8 @@ class CameraManager:
         return False
 
     async def start(self) -> None:
+        # Build the driver off-thread — Picamera2() blocks briefly on real hardware.
+        self._camera = await anyio.to_thread.run_sync(select_camera, self._settings)
         await self.camera.start(self.broker)
         self.started = True
         # Push the initial settings so the driver has a defined baseline (frame duration, AE, ...).
@@ -263,7 +270,8 @@ class CameraManager:
             with contextlib.suppress(asyncio.CancelledError):
                 await self._analyze_task
             self._analyze_task = None
-        await self.camera.stop()
+        if self._camera is not None:
+            await self._camera.stop()
         self.started = False
         logger.info("Camera stopped")
 
@@ -294,9 +302,3 @@ class CameraManager:
         if luma is not None:
             return focus.analyze_luma(luma, roi, mode)
         return focus.analyze(frame, roi, mode)
-
-    async def get_controls(self) -> dict:
-        return await self.camera.get_controls()
-
-    async def set_controls(self, values: dict) -> None:
-        await self.camera.set_controls(values)

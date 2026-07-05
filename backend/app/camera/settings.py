@@ -7,7 +7,7 @@ both the mock and the picamera2 driver consume via ``set_controls``.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass, fields, replace
 from typing import Literal
 
 from .profile import CameraProfile
@@ -39,10 +39,12 @@ def clamp(settings: CameraSettings, profile: CameraProfile) -> CameraSettings:
     return replace(settings, exposure_us=exp, gain=gain)
 
 
+_FIELD_NAMES = frozenset(f.name for f in fields(CameraSettings))
+
+
 def merge(settings: CameraSettings, update: dict) -> CameraSettings:
-    """Apply a partial update (only known keys) to the current settings."""
-    allowed = {"ae_enable", "awb_enable", "exposure_us", "gain", "preview_mode"}
-    clean = {k: v for k, v in update.items() if k in allowed and v is not None}
+    """Apply a partial update to the current settings (only known dataclass fields; skips None)."""
+    clean = {k: v for k, v in update.items() if k in _FIELD_NAMES and v is not None}
     return replace(settings, **clean)
 
 

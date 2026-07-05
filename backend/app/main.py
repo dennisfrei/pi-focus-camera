@@ -19,7 +19,7 @@ from litestar.static_files import create_static_files_router
 
 from . import __version__
 from .camera.manager import CameraManager
-from .config import settings
+from .config import Settings, settings
 from .controllers.camera import get_settings, update_settings
 from .controllers.capture import cancel_capture, capture
 from .controllers.focus import get_focus, set_focus_mode, set_focus_roi, set_focus_zoom
@@ -61,52 +61,68 @@ openapi_config = OpenAPIConfig(
 )
 
 
-@asynccontextmanager
-async def lifespan(app: Litestar) -> AsyncIterator[None]:
-    await presets.init_db(settings.db_path)
-    await captures.init_db(settings.db_path)
-    manager = CameraManager(settings)
-    await manager.start()
-    app.state.manager = manager
-    try:
-        yield
-    finally:
-        await manager.stop()
+ROUTE_HANDLERS = [
+    stream,
+    live,
+    health,
+    system_info,
+    power,
+    get_settings,
+    update_settings,
+    list_presets,
+    save_preset,
+    apply_preset,
+    delete_preset,
+    get_focus,
+    set_focus_roi,
+    set_focus_mode,
+    set_focus_zoom,
+    capture,
+    cancel_capture,
+    start_sequence,
+    cancel_sequence,
+    list_gallery,
+    get_thumb,
+    get_image,
+    get_raw,
+    delete_capture,
+]
 
 
-STATIC_DIR.mkdir(exist_ok=True)
+def create_app(app_settings: Settings | None = None) -> Litestar:
+    """Build a Litestar app bound to ``app_settings`` (defaults to the env-driven singleton).
 
-app = Litestar(
-    route_handlers=[
-        stream,
-        live,
-        health,
-        system_info,
-        power,
-        get_settings,
-        update_settings,
-        list_presets,
-        save_preset,
-        apply_preset,
-        delete_preset,
-        get_focus,
-        set_focus_roi,
-        set_focus_mode,
-        set_focus_zoom,
-        capture,
-        cancel_capture,
-        start_sequence,
-        cancel_sequence,
-        list_gallery,
-        get_thumb,
-        get_image,
-        get_raw,
-        delete_capture,
-        # Vendored Swagger UI assets (offline docs).
-        create_static_files_router(path="/vendor", directories=[VENDOR_DIR]),
-        # Serves the built SPA at "/"; API routes above take precedence.
-        create_static_files_router(path="/", directories=[STATIC_DIR], html_mode=True),
-    ],
-    openapi_config=openapi_config,
-    lifespan=[lifespan],
-)
+    The factory lets each instance own its own config, camera manager, and SQLite database — so
+    tests spin up a fully isolated app on a tmp DB instead of sharing global on-disk state.
+    """
+    cfg = app_settings or settings
+    STATIC_DIR.mkdir(exist_ok=True)
+
+    @asynccontextmanager
+    async def lifespan(app: Litestar) -> AsyncIterator[None]:
+        await presets.init_db(cfg.db_path)
+        await captures.init_db(cfg.db_path)
+        manager = CameraManager(cfg)
+        await manager.start()
+        app.state.settings = cfg
+        app.state.manager = manager
+        try:
+            yield
+        finally:
+            await manager.stop()
+
+    return Litestar(
+        route_handlers=[
+            *ROUTE_HANDLERS,
+            # Vendored Swagger UI assets (offline docs).
+            create_static_files_router(path="/vendor", directories=[VENDOR_DIR]),
+            # Serves the built SPA at "/"; API routes above take precedence.
+            create_static_files_router(path="/", directories=[STATIC_DIR], html_mode=True),
+        ],
+        openapi_config=openapi_config,
+        lifespan=[lifespan],
+    )
+
+
+# The default app for uvicorn / `poe serve` (app.main:app), bound to the env-driven settings.
+app = create_app()

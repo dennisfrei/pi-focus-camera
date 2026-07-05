@@ -238,6 +238,27 @@ The remaining audit items (idle-pause of the analyze loop / encoder, smaller lor
 payload dedup, gallery pagination, the V-curve focus tracker) are the next pass — several are best
 validated during the hardware session.
 
+## Code-health pass — 2026-07-05
+
+Structural cleanup before the next feature round (no behavior change):
+
+- **App factory + test isolation** — `main.create_app(settings)` builds an app bound to a given
+  `Settings`; the module `app` is just `create_app()`. `settings` now lives on `app.state`
+  (the power endpoint reads it there). Tests use a `client` fixture (`tests/conftest.py`) that
+  spins up an isolated app on a **tmp DB + captures dir**, so they no longer share the dev
+  `astrocam.db` — the fragility that flaked the preset test twice. The suite now writes nothing to
+  the working directory.
+- **Deferred, non-blocking driver init** — the camera is built in `start()` via
+  `anyio.to_thread`, so constructing `Picamera2()` (which blocks on hardware) no longer stalls the
+  event loop at startup. `manager.camera` is a property that errors before start.
+- **Single sources of truth** — `supports_hw_zoom` is read only from `CameraProfile` (dropped the
+  duplicate `Camera` attribute); `settings.merge()` derives its allowlist from
+  `dataclasses.fields(CameraSettings)` instead of a hand-kept set.
+- **Dead code / dupes removed** — unused `manager.get_controls`/`set_controls`; the redundant
+  `sequence_state.index` (was `done + 1`), also from the WS payload + frontend type.
+
+50 tests pass (all endpoint tests isolated), ruff + format clean, svelte-check 0.
+
 ---
 
 ## Known issues — code review 2026-07-04
@@ -273,11 +294,11 @@ guarded.
 10. ✅ **Slider PATCH flood** (`Controls.svelte`): exposure/gain now echo locally on `input` and
     PATCH once on `change` (release) — one request per drag instead of dozens.
 
-Still open (minor, not blocking, tracked for later): `manager.get_controls`/`set_controls` are dead
-pass-throughs; `Picamera2()` is constructed synchronously on the event loop at startup (blocking,
-startup-only); `sequence_state.index` duplicates `done + 1`; the sequence interval is end-to-start
-rather than the start-to-start cadence astro intervalometers usually mean (document or change);
-per-op SQLite connects and the PWA shell's one-reload-behind update are accepted v1 trade-offs.
+Still open (minor, not blocking): the sequence interval is end-to-start rather than the
+start-to-start cadence astro intervalometers usually mean (document or change); per-op SQLite
+connects and the PWA shell's one-reload-behind update are accepted v1 trade-offs. (The dead
+`get_controls`/`set_controls`, the blocking `Picamera2()` constructor, and the redundant
+`sequence_state.index` were cleaned up in the 2026-07-05 code-health pass below.)
 
 ---
 

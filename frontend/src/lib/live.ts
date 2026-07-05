@@ -13,7 +13,6 @@ export type SequenceState = {
   active: boolean
   count: number
   done: number
-  index: number
   interval_s: number
   exposure_us: number
   raw: boolean

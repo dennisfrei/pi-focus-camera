@@ -33,10 +33,9 @@ class CaptureResult:
 
 @runtime_checkable
 class Camera(Protocol):
+    # Sensor capabilities, including ``supports_hw_zoom`` (true 1:1 ScalerCrop vs the mock's CSS
+    # zoom) — the single source of truth read by both the manager and the frontend.
     profile: CameraProfile
-    # True when the driver can crop the sensor for a true 1:1 zoom (ScalerCrop); the mock can't and
-    # the UI falls back to a CSS zoom of the downscaled preview.
-    supports_hw_zoom: bool
 
     async def start(self, broker: FrameBroker) -> None:
         """Begin producing preview JPEG frames into ``broker``."""

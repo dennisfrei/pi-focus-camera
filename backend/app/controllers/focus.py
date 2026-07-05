@@ -53,4 +53,4 @@ async def set_focus_zoom(request: Request, data: RoiUpdate) -> dict:
     manager = request.app.state.manager
     roi = tuple(data.roi) if data.roi else None
     await manager.set_zoom(roi)
-    return {"roi": list(roi) if roi else None, "hw_zoom": manager.camera.supports_hw_zoom}
+    return {"roi": list(roi) if roi else None, "hw_zoom": manager.profile.supports_hw_zoom}

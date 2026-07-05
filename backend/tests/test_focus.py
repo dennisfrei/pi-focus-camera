@@ -9,7 +9,6 @@ from litestar.testing import TestClient
 from PIL import Image
 
 from app.camera import focus
-from app.main import app
 
 
 def _jpeg(arr: np.ndarray) -> bytes:
@@ -41,17 +40,15 @@ def test_roi_falls_back_when_degenerate() -> None:
     assert "focus_score" in result
 
 
-def test_roi_endpoint_roundtrip() -> None:
-    with TestClient(app=app) as client:
-        resp = client.post("/api/focus/roi", json={"roi": [0.1, 0.1, 0.6, 0.6]})
-        assert resp.json()["roi"] == [0.1, 0.1, 0.6, 0.6]
-        # Clearing it returns to full-frame.
-        assert client.post("/api/focus/roi", json={"roi": None}).json()["roi"] is None
+def test_roi_endpoint_roundtrip(client: TestClient) -> None:
+    resp = client.post("/api/focus/roi", json={"roi": [0.1, 0.1, 0.6, 0.6]})
+    assert resp.json()["roi"] == [0.1, 0.1, 0.6, 0.6]
+    # Clearing it returns to full-frame.
+    assert client.post("/api/focus/roi", json={"roi": None}).json()["roi"] is None
 
 
-def test_live_metrics_present_after_startup() -> None:
-    with TestClient(app=app) as client:
-        with client.websocket_connect("/api/live") as ws:
-            msg = ws.receive_json()
-            assert "focus_score" in msg
-            assert "histogram" in msg
+def test_live_metrics_present_after_startup(client: TestClient) -> None:
+    with client.websocket_connect("/api/live") as ws:
+        msg = ws.receive_json()
+        assert "focus_score" in msg
+        assert "histogram" in msg

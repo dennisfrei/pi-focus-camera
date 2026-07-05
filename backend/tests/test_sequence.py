@@ -10,7 +10,6 @@ from litestar.testing import TestClient
 from app.camera.manager import CameraManager
 from app.config import Settings
 from app.controllers import system
-from app.main import app
 from app.storage import captures
 
 
@@ -76,29 +75,31 @@ async def test_rejects_second_sequence(tmp_path: Path) -> None:
         await manager.stop()
 
 
-def test_sequence_endpoints() -> None:
-    with TestClient(app=app) as client:
-        started = client.post("/api/sequence", json={"count": 2, "interval_s": 5.0}).json()
-        assert started["active"] is True and started["count"] == 2
-        # A second start while running is a 400.
-        assert client.post("/api/sequence", json={"count": 2, "interval_s": 0}).status_code == 400
-        assert client.post("/api/sequence/cancel").json()["cancelled"] is True
+def test_sequence_endpoints(client: TestClient) -> None:
+    started = client.post("/api/sequence", json={"count": 2, "interval_s": 5.0}).json()
+    assert started["active"] is True and started["count"] == 2
+    # A second start while running is a 400.
+    assert client.post("/api/sequence", json={"count": 2, "interval_s": 0}).status_code == 400
+    assert client.post("/api/sequence/cancel").json()["cancelled"] is True
 
 
-def test_power_controls_disabled_by_default() -> None:
+def test_power_controls_disabled_by_default(client: TestClient) -> None:
     """Power off/reboot must be refused (403) unless explicitly enabled, and bad actions are 400."""
-    with TestClient(app=app, raise_server_exceptions=False) as client:
-        assert client.get("/api/system").json()["power_controls"] is False
-        assert client.post("/api/system/power", json={"action": "shutdown"}).status_code == 403
-        assert client.post("/api/system/power", json={"action": "melt"}).status_code == 400
+    assert client.get("/api/system").json()["power_controls"] is False
+    assert client.post("/api/system/power", json={"action": "shutdown"}).status_code == 403
+    assert client.post("/api/system/power", json={"action": "melt"}).status_code == 400
 
 
-def test_system_metrics_shape() -> None:
+def test_power_controls_flag_follows_settings(power_client: TestClient) -> None:
+    """The factory-injected settings drive the flag — GET only (never POST the real power action)."""
+    assert power_client.get("/api/system").json()["power_controls"] is True
+
+
+def test_system_metrics_shape(client: TestClient) -> None:
     # The values may be None on a non-Pi dev box, but the keys and disk shape must be present.
     assert system.disk_usage(Path("/")).keys() == {"total", "used", "free"}
-    with TestClient(app=app) as client:
-        data = client.get("/api/system").json()
-        assert "cpu_temp_c" in data
-        assert "uptime_s" in data
-        assert set(data["disk"]) == {"total", "used", "free"}
-        assert data["disk"]["total"] > 0
+    data = client.get("/api/system").json()
+    assert "cpu_temp_c" in data
+    assert "uptime_s" in data
+    assert set(data["disk"]) == {"total", "used", "free"}
+    assert data["disk"]["total"] > 0
