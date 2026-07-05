@@ -33,6 +33,47 @@ from .stream import FrameBroker
 logger = logging.getLogger(__name__)
 
 
+def _ensure_dng_compat() -> None:
+    """Make pidng's DNG camera class tolerate the extra positional arg picamera2 passes.
+
+    On Raspberry Pi OS the apt ``picamera2`` calls ``Picamera2Camera(config, metadata, model)`` but
+    no released ``pidng`` accepts that third ``model`` arg — its ``__init__`` is ``(config,
+    metadata)`` — so ``request.save_dng`` dies with *"takes 3 positional arguments but 4 were
+    given"*. Chasing pidng versions doesn't help. Instead, wrap the class's ``__init__`` to keep only
+    the positional args it actually declares (the extra ``model`` is a cosmetic DNG tag), so raw DNG
+    export works regardless of the installed pidng. Idempotent; a no-op on any version that already
+    accepts the arg (or ``*args``).
+    """
+    import importlib
+    import inspect
+
+    cls = None
+    for modname in ("picamera2.request", "pidng.camdefs", "pidng.core"):
+        try:
+            cls = getattr(importlib.import_module(modname), "Picamera2Camera", None)
+        except Exception:  # noqa: BLE001 - probing optional module paths
+            cls = None
+        if cls is not None:
+            break
+    if cls is None:
+        return
+
+    orig = cls.__init__
+    if getattr(orig, "_pfc_patched", False):
+        return
+    params = inspect.signature(orig).parameters.values()
+    if any(p.kind == p.VAR_POSITIONAL for p in params):
+        return  # already accepts *args — nothing to fix
+    keep = sum(1 for p in params if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)) - 1
+
+    def _init(self, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003
+        orig(self, *args[:keep], **kwargs)
+
+    _init._pfc_patched = True  # type: ignore[attr-defined]
+    cls.__init__ = _init
+    logger.info("Applied pidng DNG compatibility shim (dropped extra positional arg)")
+
+
 class _BrokerOutput(io.BufferedIOBase):
     """A file-like sink for :class:`JpegEncoder`; each ``write`` receives one complete JPEG."""
 
@@ -200,6 +241,7 @@ class Picamera2Camera:
     @staticmethod
     def _dng_bytes(request) -> bytes:
         """Serialize the sensor raw as DNG. picamera2 writes to a path, so round-trip via a temp."""
+        _ensure_dng_compat()  # tolerate the picamera2/pidng arg-count skew (idempotent)
         fd, name = tempfile.mkstemp(suffix=".dng")
         os.close(fd)
         try:

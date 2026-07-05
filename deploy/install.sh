@@ -39,10 +39,8 @@ sed -i '/^numpy/d' "$REQ"
 uv pip install -r "$REQ"
 uv pip install -e . --no-deps
 rm -f "$REQ"
-# Newer pidng for DNG capture — apt's is too old for the apt picamera2's save_dng (picamera2 passes a
-# `model` arg the old pidng rejects). --no-deps so it doesn't drag numpy 2.x back in (that shadows
-# apt's numpy and breaks simplejpeg's ABI).
-uv pip install -U pidng --no-deps
+# (DNG capture works with apt's pidng — the driver applies a small compatibility shim for the
+# picamera2/pidng arg-count skew, so no pip pidng is needed.)
 
 echo "==> Frontend build"
 if command -v npm >/dev/null 2>&1; then
