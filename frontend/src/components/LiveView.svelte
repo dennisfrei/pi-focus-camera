@@ -23,7 +23,23 @@
   let start = { x: 0, y: 0 }
   let cur = $state({ x: 0, y: 0 })
 
-  const src = `/api/stream.mjpg?t=${Date.now()}`
+  // The MJPEG <img> is a single long-lived connection; unlike the WebSocket it has no auto-reconnect,
+  // so on a long session a dropped connection leaves a black frame. Re-point the src (new
+  // cache-buster) to reconnect — on load error, and via a manual Reload button.
+  let src = $state(`/api/stream.mjpg?t=${Date.now()}`)
+  let reconnectTimer: ReturnType<typeof setTimeout> | undefined
+
+  function reconnectStream() {
+    clearTimeout(reconnectTimer)
+    loaded = false
+    errored = false
+    src = `/api/stream.mjpg?t=${Date.now()}`
+  }
+
+  function onStreamError() {
+    errored = true
+    reconnectTimer = setTimeout(reconnectStream, 1500)
+  }
 
   // Selection rectangle (normalized) currently being drawn.
   let sel = $derived(
@@ -95,6 +111,7 @@
     Zoom{hwZoom ? ' 1:1' : ''}
   </button>
   <button onclick={clearRoi} disabled={!roi}>Clear ROI</button>
+  <button onclick={reconnectStream} title="Reconnect the preview stream">Reload</button>
   <span class="hint">{roi ? 'ROI set' : 'drag on the image to set a focus region'}</span>
 </div>
 
@@ -120,7 +137,7 @@
     class:hidden={!loaded}
     style:transform
     onload={() => (loaded = true)}
-    onerror={() => (errored = true)}
+    onerror={onStreamError}
   />
 
   {#if showGrid}

@@ -17,7 +17,6 @@ import io
 import logging
 import os
 import tempfile
-import time
 from pathlib import Path
 
 import anyio
@@ -64,50 +63,26 @@ class Picamera2Camera:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._recording = False
 
-        # Small lores stream for the focus metric (HFD on the brightest star is resolution-tolerant),
-        # so it doesn't add much bandwidth alongside the main JPEG stream.
-        self._lores_w = min(self._w, 640)
-        self._lores_h = int(self._h * self._lores_w / self._w) & ~1  # keep aspect, even for YUV420
-        # Latest lores Y plane, grabbed cheaply in the camera callback (never via a separate
-        # capture_array, which would contend with the encoder and stall the preview).
-        self._latest_luma: np.ndarray | None = None
-        self._last_luma_t = 0.0
-
     async def start(self, broker: FrameBroker) -> None:
         self._broker = broker
         self._loop = asyncio.get_running_loop()
         await anyio.to_thread.run_sync(self._start_sync)
 
     def _start_sync(self) -> None:
-        # A small YUV420 "lores" stream rides alongside the JPEG-encoded main stream; its Y plane is
-        # the uncompressed luma the focus metric analyzes (no JPEG decode / quantization loss on
-        # faint stars — CONCEPT §4). We grab it in a throttled post_callback rather than via
-        # capture_array, so the focus path never contends with the encoder.
+        # Single main stream, JPEG-encoded by the hardware-friendly recording path (the official
+        # picamera2 MJPEG recipe). Focus analyzes the decoded main JPEG (via the manager's fallback),
+        # so there's no second stream / capture to contend with the encoder and stall the preview.
         config = self._picam2.create_video_configuration(
             main={"size": (self._w, self._h)},
-            lores={"size": (self._lores_w, self._lores_h), "format": "YUV420"},
             # Configure the stream to *allow* the sensor's full exposure range, so star-preview /
             # long manual exposures aren't clamped to the default video frame duration. The manager
             # immediately applies the actual limits (fast for normal preview) after start.
             controls={"FrameDurationLimits": (8333, int(self.profile.exposure_us.max))},
         )
         self._picam2.configure(config)
-        self._picam2.post_callback = self._grab_luma
         output = _BrokerOutput(self._emit)
         self._picam2.start_recording(JpegEncoder(), FileOutput(output), name="main")
         self._recording = True
-
-    def _grab_luma(self, request) -> None:
-        """Stash the lores Y plane, throttled — runs on picamera2's thread for every frame."""
-        now = time.monotonic()
-        if now - self._last_luma_t < 0.15:  # ~6 Hz is plenty for the focus meter
-            return
-        self._last_luma_t = now
-        try:
-            yuv = request.make_array("lores")  # YUV420: Y occupies the first `lores_h` rows
-            self._latest_luma = np.ascontiguousarray(yuv[: self._lores_h, : self._lores_w])
-        except Exception:  # noqa: BLE001 - a callback error must never disrupt streaming
-            pass
 
     def _emit(self, frame: bytes) -> None:
         if self._loop is not None and self._broker is not None:
@@ -117,7 +92,6 @@ class Picamera2Camera:
         await anyio.to_thread.run_sync(self._stop_sync)
 
     def _stop_sync(self) -> None:
-        self._picam2.post_callback = None
         if self._recording:
             self._picam2.stop_recording()
             self._recording = False
@@ -132,8 +106,8 @@ class Picamera2Camera:
         self._controls.update(values)
 
     def get_luma(self) -> np.ndarray | None:
-        """The latest lores Y plane (stashed by the callback). None → manager decodes the JPEG."""
-        return self._latest_luma
+        """No dedicated luma stream — return None so the manager decodes the preview JPEG instead."""
+        return None
 
     def _full_crop(self) -> tuple[int, int, int, int]:
         """The sensor rectangle a normalized ROI is measured against (max ScalerCrop region)."""
@@ -176,9 +150,6 @@ class Picamera2Camera:
         if was_recording:
             self._picam2.stop_recording()
             self._recording = False
-        self._picam2.post_callback = (
-            None  # the still config has no lores stream; _start_sync re-arms
-        )
         try:
             controls = (
                 {"AeEnable": True}
