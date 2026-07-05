@@ -179,7 +179,10 @@ class Picamera2Camera:
                     try:
                         raw_bytes = self._dng_bytes(request)
                     except Exception:
-                        logger.exception("DNG save failed — saving JPEG only (check pidng version)")
+                        logger.exception(
+                            "DNG save failed — saved JPEG only. Fix: in backend/, run "
+                            "`uv pip install -U pidng --no-deps` (picamera2 needs a newer pidng)."
+                        )
             finally:
                 request.release()
         finally:
