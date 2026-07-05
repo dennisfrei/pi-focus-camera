@@ -266,7 +266,7 @@ uv-managed **Python 3.14**:
 - **A. Pip-installable stack (keeps uv + 3.14):**
   ```bash
   sudo apt install -y libcap-dev   # picamera2 → python-prctl builds against libcap
-  uv sync --extra pi               # adds picamera2 + rpi-libcamera + rpi-kms
+  uv sync --extra pi               # adds picamera2 + rpi-libcamera (no rpi-kms — headless)
   ```
   `pi` is an optional extra in `pyproject.toml`, so a plain `uv sync` (dev box) never touches it.
   Clean if wheels exist for your Python/libcamera combo. **Risk:** `rpi-libcamera` is niche and

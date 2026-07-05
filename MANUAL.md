@@ -150,7 +150,7 @@ app can work without it.
 - **Path A — pip stack, keeps uv's Python 3.14:**
   ```bash
   sudo apt install -y libcap-dev        # picamera2 → python-prctl needs the libcap headers
-  cd backend && uv sync --extra pi      # installs picamera2 + rpi-libcamera + rpi-kms
+  cd backend && uv sync --extra pi      # installs picamera2 + rpi-libcamera
   ```
   The Pi stack is the optional **`pi` extra** in `pyproject.toml`, so a plain `uv sync` never
   touches it. Clean *if* wheels exist for your Python/libcamera combo; `rpi-libcamera` is

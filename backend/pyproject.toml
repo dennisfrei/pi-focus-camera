@@ -19,13 +19,14 @@ dependencies = [
 # Raspberry Pi camera stack — the pip route (deploy "Path A", CONCEPT.md §7). It's an *optional*
 # extra, so a plain `uv sync` on a dev box never touches it; install on-device with
 # `uv sync --extra pi`. NOTE: `picamera2` pulls `python-prctl`, which needs the libcap headers to
-# build — `sudo apt install -y libcap-dev` first. The most reliable route on the Pi is still Path B
-# (apt `python3-picamera2` + a `--system-site-packages` venv), which needs none of this.
+# build — `sudo apt install -y libcap-dev` first. `rpi-kms` (pykms/kmsxx) is deliberately NOT here:
+# it's only for a local DRM preview window, which this headless HTTP-streaming app never uses, and
+# it needs a heavy kmsxx build (cmake + libkms++-dev/libfmt-dev/libdrm-dev). The most reliable route
+# on the Pi is still Path B (apt `python3-picamera2` + a `--system-site-packages` venv).
 [project.optional-dependencies]
 pi = [
     "picamera2>=0.3.22",
     "rpi-libcamera>=0.1a6",
-    "rpi-kms>=0.1a1",
 ]
 
 [dependency-groups]
