@@ -5,6 +5,8 @@ everything, is its own WiFi access point, and a phone connects to a local web GU
 adjust camera settings, and **capture** — fully offline.
 
 - **[MANUAL.md](MANUAL.md)** — setup, configuration & deployment (the operator's guide)
+- **[HARDWARE_SESSION.md](HARDWARE_SESSION.md)** — the on-Pi to-do list: what to verify with the
+  camera attached, in order, plus the backlog. **Start here when working on the Pi.**
 - **[CONCEPT.md](CONCEPT.md)** — architecture & the *what/why*
 - **[IMPLEMENTATION.md](IMPLEMENTATION.md)** — the step-by-step build plan (milestones M0–M7)
   and the **known-issues register** from the latest code review
