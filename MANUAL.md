@@ -261,6 +261,7 @@ build.
 | Symptom | Cause / fix |
 |---------|-------------|
 | UI shows **MOCK CAMERA** badge on the Pi | `picamera2` not importable in the venv (check `journalctl -u astrocam` for the fallback log line), no camera detected (`rpicam-hello --list-cameras`), or `PFC_FORCE_MOCK=true` left set |
+| Log: `Falling back to MockCamera (numpy.dtype size changed … ABI)` | A pip **numpy 2.x** in the venv shadows apt's numpy 1.24 that `simplejpeg` was built against. Run `uv pip uninstall numpy` so the app uses apt's. **This recurs** after *any* `uv pip install` that pulls numpy (e.g. `pidng`) — uninstall numpy again, or install with `--no-deps`. |
 | No live view, "no stream" placeholder | Backend not running / wrong port. `systemctl status astrocam`; in dev, is `poe dev` up and the Vite proxy pointing at it? |
 | "reconnecting…" link status | WebSocket can't connect — same causes as above; also triggered briefly by a backend restart (it auto-reconnects) |
 | Stream frozen during a capture | Expected — one sensor can't stream and integrate a long exposure at once. The capture bar shows the countdown; preview resumes after |
