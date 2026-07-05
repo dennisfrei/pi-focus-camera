@@ -7,6 +7,7 @@ Only basenames are stored in the DB so the captures directory can be moved (e.g.
 
 from __future__ import annotations
 
+import contextlib
 import io
 import json
 import time
@@ -32,12 +33,19 @@ async def init_db(path: Path) -> None:
             " height INTEGER NOT NULL,"
             " jpeg_path TEXT NOT NULL,"
             " raw_path TEXT,"
-            " thumb_path TEXT NOT NULL)"
+            " thumb_path TEXT NOT NULL,"
+            " jpeg_bytes INTEGER,"
+            " raw_bytes INTEGER)"
         )
+        # Migrate DBs created before the size columns existed (ignore if already present).
+        for column in ("jpeg_bytes INTEGER", "raw_bytes INTEGER"):
+            with contextlib.suppress(aiosqlite.OperationalError):
+                await db.execute(f"ALTER TABLE captures ADD COLUMN {column}")
         await db.commit()
 
 
 def _row_to_dict(row: aiosqlite.Row) -> dict:
+    keys = row.keys()
     return {
         "id": row["id"],
         "created": row["created"],
@@ -48,6 +56,8 @@ def _row_to_dict(row: aiosqlite.Row) -> dict:
         "raw_path": row["raw_path"],
         "thumb_path": row["thumb_path"],
         "has_raw": row["raw_path"] is not None,
+        "jpeg_bytes": row["jpeg_bytes"] if "jpeg_bytes" in keys else None,
+        "raw_bytes": row["raw_bytes"] if "raw_bytes" in keys else None,
     }
 
 
@@ -71,9 +81,11 @@ def write_files(captures_dir: Path, result: CaptureResult, settings: dict) -> di
     thumb.convert("RGB").save(captures_dir / thumb_name, format="JPEG", quality=80)
 
     raw_name = None
+    raw_bytes = None
     if result.raw is not None:
         raw_name = f"{base}.{result.raw_ext}"
         (captures_dir / raw_name).write_bytes(result.raw)
+        raw_bytes = len(result.raw)
 
     return {
         "created": time.time(),
@@ -83,6 +95,8 @@ def write_files(captures_dir: Path, result: CaptureResult, settings: dict) -> di
         "jpeg_path": jpeg_name,
         "raw_path": raw_name,
         "thumb_path": thumb_name,
+        "jpeg_bytes": len(result.jpeg),
+        "raw_bytes": raw_bytes,
     }
 
 
@@ -90,8 +104,9 @@ async def add_capture(path: Path, row: dict) -> int:
     async with aiosqlite.connect(path) as db:
         cur = await db.execute(
             "INSERT INTO captures"
-            " (created, settings, width, height, jpeg_path, raw_path, thumb_path)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?)",
+            " (created, settings, width, height, jpeg_path, raw_path, thumb_path,"
+            "  jpeg_bytes, raw_bytes)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 row["created"],
                 row["settings"],
@@ -100,6 +115,8 @@ async def add_capture(path: Path, row: dict) -> int:
                 row["jpeg_path"],
                 row["raw_path"],
                 row["thumb_path"],
+                row["jpeg_bytes"],
+                row["raw_bytes"],
             ),
         )
         await db.commit()

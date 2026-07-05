@@ -35,6 +35,16 @@
     const m = Math.floor((s % 3600) / 60)
     return d > 0 ? `${d}d ${h}h ${m}m` : h > 0 ? `${h}h ${m}m` : `${m}m`
   }
+
+  // The raw `state` is just idle/preview — surface what the camera is actually doing right now.
+  const activity = $derived.by(() => {
+    const l = $live
+    if (!l) return '—'
+    if (l.capture?.active) return 'capturing…'
+    if (l.sequence?.active) return `sequence ${l.sequence.done}/${l.sequence.count}`
+    if (l.settings?.preview_mode === 'star') return 'star preview'
+    return l.state ?? 'preview'
+  })
 </script>
 
 <section class="status">
@@ -44,7 +54,7 @@
   </div>
   <div class="row">
     <span class="label">State</span>
-    <span class="value">{$live?.state ?? '—'}</span>
+    <span class="value">{activity}</span>
   </div>
   <div class="row">
     <span class="label">Link</span>

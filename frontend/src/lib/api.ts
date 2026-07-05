@@ -121,6 +121,15 @@ export type Capture = {
   raw_path: string | null
   thumb_path: string
   has_raw: boolean
+  jpeg_bytes: number | null
+  raw_bytes: number | null
+}
+
+export function formatBytes(n: number | null): string {
+  if (n == null) return '—'
+  if (n >= 1024 ** 2) return `${(n / 1024 ** 2).toFixed(1)} MB`
+  if (n >= 1024) return `${(n / 1024).toFixed(0)} kB`
+  return `${n} B`
 }
 
 export type FrameType = 'light' | 'dark' | 'flat' | 'bias'

@@ -5,6 +5,7 @@
     thumbUrl,
     imageUrl,
     rawUrl,
+    formatBytes,
     type Capture,
     type FrameType,
   } from '../lib/api'
@@ -142,13 +143,19 @@
     <img src={imageUrl(selected.id)} alt="capture {selected.id}" />
     <div class="meta">
       <div class="info">
-        <span>{fmt(selected.created)} · {selected.width}×{selected.height}</span>
+        <span class="dims">{selected.width} × {selected.height} px</span>
+        <span>{fmt(selected.created)}</span>
         <span class="settings">{fmtSettings(selected.settings)}</span>
+        <span class="sizes">
+          JPEG {formatBytes(selected.jpeg_bytes)}{#if selected.has_raw} · RAW {formatBytes(
+              selected.raw_bytes,
+            )}{/if}
+        </span>
       </div>
       <div class="acts">
-        <a class="btn" href={imageUrl(selected.id)} download>Download JPEG</a>
+        <a class="btn" href={imageUrl(selected.id)} download>JPEG</a>
         {#if selected.has_raw}
-          <a class="btn" href={rawUrl(selected.id)} download>Raw</a>
+          <a class="btn accent" href={rawUrl(selected.id)} download>RAW (DNG)</a>
         {/if}
         <button class="btn danger" onclick={() => remove(selected!.id)}>Delete</button>
         <button class="btn" onclick={() => (selected = null)}>Close</button>
@@ -322,9 +329,21 @@
     flex-direction: column;
     gap: 0.15rem;
   }
+  .dims {
+    color: var(--fg);
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
   .settings {
     color: var(--accent);
     font-variant-numeric: tabular-nums;
+  }
+  .sizes {
+    font-variant-numeric: tabular-nums;
+  }
+  .btn.accent {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 50%, transparent);
   }
   .acts {
     display: flex;

@@ -107,11 +107,11 @@
       <p class="hint">Long-exposure preview so faint stars become visible — the stream slows to ~1 fps.</p>
     {/if}
 
-    <label class="check">
+    <label class="check" title="Camera picks exposure & gain automatically. Turn off before focusing on stars.">
       <input type="checkbox" checked={settings.ae_enable} onchange={(e) => apply({ ae_enable: (e.target as HTMLInputElement).checked })} />
       Auto exposure (AE)
     </label>
-    <label class="check">
+    <label class="check" title="Auto white balance: corrects colour casts (e.g. a magenta tint). Turn off for consistent colour across frames.">
       <input type="checkbox" checked={settings.awb_enable} onchange={(e) => apply({ awb_enable: (e.target as HTMLInputElement).checked })} />
       Auto white balance (AWB)
     </label>
