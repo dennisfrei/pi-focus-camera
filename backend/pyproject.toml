@@ -16,9 +16,17 @@ dependencies = [
     "aiosqlite>=0.20",
 ]
 
-# NOTE: the Raspberry Pi camera stack (picamera2 + rpi-libcamera + rpi-kms) is intentionally
-# NOT declared here. Those packages only build on-device and would break `uv sync` on a dev box.
-# Install them on the Pi from `requirements-pi.txt` (Path A) or via apt (Path B) — see CONCEPT.md §7.
+# Raspberry Pi camera stack — the pip route (deploy "Path A", CONCEPT.md §7). It's an *optional*
+# extra, so a plain `uv sync` on a dev box never touches it; install on-device with
+# `uv sync --extra pi`. NOTE: `picamera2` pulls `python-prctl`, which needs the libcap headers to
+# build — `sudo apt install -y libcap-dev` first. The most reliable route on the Pi is still Path B
+# (apt `python3-picamera2` + a `--system-site-packages` venv), which needs none of this.
+[project.optional-dependencies]
+pi = [
+    "picamera2>=0.3.22",
+    "rpi-libcamera>=0.1a6",
+    "rpi-kms>=0.1a1",
+]
 
 [dependency-groups]
 dev = [
@@ -35,6 +43,15 @@ serve = "litestar --app app.main:app run --host 0.0.0.0 --port 8080"
 test = "pytest"
 lint = "ruff check ."
 format = "ruff format ."
+
+[tool.uv]
+# `python-prctl` (a picamera2 dependency) ships no wheels and needs the libcap headers to build, so
+# `uv lock` would otherwise try to compile it just to read its metadata. Declare that metadata here
+# (it has no runtime deps) so locking never builds it — the real build only happens on the Pi at
+# `uv sync --extra pi`, where `sudo apt install -y libcap-dev` is required.
+dependency-metadata = [
+    { name = "python-prctl", version = "1.8.1", requires-dist = [] },
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

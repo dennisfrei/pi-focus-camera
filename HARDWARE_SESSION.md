@@ -15,8 +15,8 @@ picamera2 install caveat). Milestone context is in [IMPLEMENTATION.md](IMPLEMENT
 1. `rpicam-hello --list-cameras` — confirm the sensor is detected *before* anything else.
 2. Provision: `bash deploy/install.sh` (uses deploy **Path B** — apt `python3-picamera2` + a
    `--system-site-packages` uv venv; pins deps from `uv.lock`). If `picamera2` wheels for your
-   Python exist and you'd rather stay on 3.14, try **Path A** (`uv pip install -r
-   backend/requirements-pi.txt`) instead — see CONCEPT §7.
+   Python exist and you'd rather stay on 3.14, try **Path A** (`sudo apt install -y libcap-dev &&
+   uv sync --extra pi`) instead — see CONCEPT §7.
 3. Quick check without the service: from `backend/`, `uv run python scripts/probe_camera.py` should
    print the detected `CameraProfile` as JSON. **This is the fastest signal that the driver imports,
    the sensor is found, and `build_profile` reads sane values.**

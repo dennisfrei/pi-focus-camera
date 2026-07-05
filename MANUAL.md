@@ -43,8 +43,8 @@ Poe tasks (defined in `backend/pyproject.toml`):
 | `uv run poe format` | ruff format |
 
 The Pi camera stack (`picamera2` etc.) is deliberately **not** in `pyproject.toml` — it doesn't
-resolve on a dev box. It lives in `backend/requirements-pi.txt` (deploy Path A) or comes from apt
-(Path B); see §4.
+resolve on a dev box. It's the optional **`pi` extra** in `pyproject.toml` (deploy Path A,
+`uv sync --extra pi`) or comes from apt (Path B); see §4.
 
 **CI** (`.github/workflows/ci.yml`) runs ruff + the pytest suite on **Python 3.13** (the deployment
 floor) and svelte-check + the frontend build on every push/PR — so a 3.14-only construct fails in CI
@@ -148,9 +148,13 @@ app can work without it.
 (CONCEPT.md §7):
 
 - **Path A — pip stack, keeps uv's Python 3.14:**
-  `uv pip install -r backend/requirements-pi.txt` (installs `picamera2`, `rpi-libcamera`,
-  `rpi-kms`). Clean *if* wheels exist for your Python/libcamera combo; `rpi-libcamera` is
-  version-sensitive. Try this first if you want to stay on 3.14.
+  ```bash
+  sudo apt install -y libcap-dev        # picamera2 → python-prctl needs the libcap headers
+  cd backend && uv sync --extra pi      # installs picamera2 + rpi-libcamera + rpi-kms
+  ```
+  The Pi stack is the optional **`pi` extra** in `pyproject.toml`, so a plain `uv sync` never
+  touches it. Clean *if* wheels exist for your Python/libcamera combo; `rpi-libcamera` is
+  version-sensitive. Try this if you want to stay on 3.14.
 - **Path B — apt package on the system Python (what `install.sh` does; most reliable):**
   ```bash
   sudo apt install -y python3-picamera2 python3-libcamera

@@ -45,8 +45,8 @@ health endpoint, Svelte shell that shows the stream.
 
 **Backend**
 - `uv init` the `backend/` project; add `litestar`, `uvicorn[standard]`, `anyio`, `numpy`,
-  `pydantic-settings`, `pillow`; dev group `ruff`, `pytest`, `pytest-asyncio`. Pi camera stack
-  lives in `requirements-pi.txt`, *not* in pyproject — it doesn't resolve on a dev box.
+  `pydantic-settings`, `pillow`; dev group `ruff`, `pytest`, `pytest-asyncio`. Pi camera stack is
+  the optional `pi` extra in `pyproject.toml` (opt-in; a plain `uv sync` skips it).
 - `app/camera/base.py` — `Camera` Protocol: `start()/stop()`, `frames() -> AsyncIterator[bytes]`
   (JPEG), `profile -> CameraProfile`, `get_controls()/set_controls()`, `capture_still(...)`.
 - `app/camera/mock.py` — `MockCamera`: numpy-drawn moving test pattern → JPEG via Pillow,
@@ -83,8 +83,8 @@ test pattern renders, WS status line updates, `GET /api/health` returns ok. No c
   (`ExposureTime`/`AnalogueGain` min/max, sensor modes, raw availability).
 - Manager auto-selects `Picamera2Camera`; constructing it doubles as detection (falls back to mock).
 - `scripts/probe_camera.py` prints the detected profile as JSON — the one-command hardware check.
-- Verify Path A (`uv pip install -r requirements-pi.txt`) vs Path B (apt + `--system-site-packages`)
-  per CONCEPT §7.
+- Verify Path A (`uv sync --extra pi`, after `apt install libcap-dev`) vs Path B (apt +
+  `--system-site-packages`) per CONCEPT §7.
 
 **Done when:** on the Pi, live preview from the real sensor shows in the phone browser; profile
 limits reflect the actual sensor (V2 ≈ 11.8 s max exposure). ← *the only part still open*
