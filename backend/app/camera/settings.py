@@ -56,16 +56,15 @@ def to_controls(settings: CameraSettings) -> dict:
         controls["AnalogueGain"] = float(settings.gain)
 
     if settings.preview_mode == "star":
-        # Long frame period so a multi-second exposure can actually complete each frame — this is
-        # what makes stars visible in the preview at all (see CONCEPT §4).
+        # Star preview integrates long frames so faint stars are visible — the stream necessarily
+        # crawls (CONCEPT §4). This is the *only* mode that slows the live preview.
         dur = int(settings.exposure_us) if not settings.ae_enable else _STAR_DEFAULT_US
         dur = max(dur, 500_000)
         controls["FrameDurationLimits"] = (dur, dur)
-    elif not settings.ae_enable and settings.exposure_us > _NORMAL_FRAME_US[1]:
-        # Normal mode, but a manual exposure longer than a video frame: raise the frame-duration
-        # ceiling to fit it, otherwise libcamera silently clamps the exposure to ~33 ms.
-        controls["FrameDurationLimits"] = (_NORMAL_FRAME_US[0], int(settings.exposure_us))
     else:
+        # Normal mode always runs at video rate for a responsive framing preview — even with a long
+        # manual exposure set. That exposure applies to *captures* (which use their own still
+        # config); libcamera just clamps the preview's ExposureTime to the video frame duration.
         controls["FrameDurationLimits"] = _NORMAL_FRAME_US
 
     return controls

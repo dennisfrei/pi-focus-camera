@@ -63,19 +63,18 @@ preview (§3) with raised gain.
 the frame stops auto-brightening); **Star preview** drops the stream to ~1 fps with long
 `FrameDurationLimits`; presets save/apply/survive a restart.
 
-**Watch for** (a code-review fix that only manifests here):
-- **Long manual exposure in *Normal* mode.** `settings.to_controls` now raises the
-  `FrameDurationLimits` ceiling to fit a manual exposure > ~33 ms. Set e.g. 2 s in Normal mode and
-  confirm the sensor actually integrates 2 s (not silently clamped). Star mode should also work.
-- **⚠ Likely fix needed — long exposures in the *preview*.** libcamera only allows a long
-  `ExposureTime` if the *video configuration's* `FrameDurationLimits` permits it. Our driver sets
-  `FrameDurationLimits` at runtime via `set_controls` (in `to_controls`), **not** in
-  `create_video_configuration` (`picamera2_driver._start_sync`). On some picamera2 versions the
-  runtime value is clamped to the mode's default, so a 2 s / star-preview exposure won't actually
-  take. If you see that, pass a wide `controls={"FrameDurationLimits": (min, sensor_max)}` (and
-  possibly a raw stream size that selects the long-exposure sensor mode) into
-  `create_video_configuration`. This is the most likely on-Pi driver tweak.
-- All control changes run under the manager lock; a slider drag now commits once on release.
+**Design (learned on hardware):** the **normal preview always runs at video rate**, even with a long
+manual exposure set — a long preview frame duration makes the preview crawl and overexpose (observed
+2026-07-05). A long exposure applies to **captures** (their own still config), not the live preview.
+**Only star mode** slows the preview to integrate faint stars.
+
+**Watch for:**
+- **Star-mode long exposure in the preview.** `to_controls` sets a long `FrameDurationLimits` at
+  runtime via `set_controls`. On some picamera2 versions that's clamped to the video mode's default
+  and won't take. If star preview doesn't actually slow down, the fix is to *reconfigure* the video
+  stream for star mode (wide `FrameDurationLimits`, possibly a raw size selecting the long-exposure
+  sensor mode) rather than only `set_controls`. Do this per-mode so the normal preview stays fast.
+- All control changes run under the manager lock; a slider drag commits once on release.
 
 ---
 

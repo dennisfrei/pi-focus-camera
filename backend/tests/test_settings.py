@@ -93,13 +93,11 @@ def test_patch_rejects_bad_input_with_400(client: TestClient) -> None:
     assert ok.json()["settings"]["gain"] == 4.0
 
 
-def test_normal_mode_long_manual_exposure_raises_frame_duration() -> None:
-    """A manual exposure longer than a video frame must widen FrameDurationLimits, not be clamped."""
-    long_normal = camsettings.to_controls(
-        CameraSettings(ae_enable=False, exposure_us=2_000_000, preview_mode="normal")
-    )
-    assert long_normal["FrameDurationLimits"] == (camsettings._NORMAL_FRAME_US[0], 2_000_000)
-    short_normal = camsettings.to_controls(
-        CameraSettings(ae_enable=False, exposure_us=10_000, preview_mode="normal")
-    )
-    assert short_normal["FrameDurationLimits"] == camsettings._NORMAL_FRAME_US
+def test_normal_mode_keeps_fast_preview_even_with_long_exposure() -> None:
+    """Normal mode stays at video rate regardless of exposure — the long exposure is for captures,
+    not the live preview (a long preview frame duration makes the preview crawl/overexpose)."""
+    for exposure in (10_000, 2_000_000):
+        controls = camsettings.to_controls(
+            CameraSettings(ae_enable=False, exposure_us=exposure, preview_mode="normal")
+        )
+        assert controls["FrameDurationLimits"] == camsettings._NORMAL_FRAME_US

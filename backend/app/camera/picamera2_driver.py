@@ -72,13 +72,10 @@ class Picamera2Camera:
         # Single main stream, JPEG-encoded by the hardware-friendly recording path (the official
         # picamera2 MJPEG recipe). Focus analyzes the decoded main JPEG (via the manager's fallback),
         # so there's no second stream / capture to contend with the encoder and stall the preview.
-        config = self._picam2.create_video_configuration(
-            main={"size": (self._w, self._h)},
-            # Configure the stream to *allow* the sensor's full exposure range, so star-preview /
-            # long manual exposures aren't clamped to the default video frame duration. The manager
-            # immediately applies the actual limits (fast for normal preview) after start.
-            controls={"FrameDurationLimits": (8333, int(self.profile.exposure_us.max))},
-        )
+        # No control overrides here — the default video mode is fast, so the preview connects quickly
+        # and stays responsive. The manager applies the live settings (normal-rate or, in star mode,
+        # a long frame duration) right after start.
+        config = self._picam2.create_video_configuration(main={"size": (self._w, self._h)})
         self._picam2.configure(config)
         output = _BrokerOutput(self._emit)
         self._picam2.start_recording(JpegEncoder(), FileOutput(output), name="main")

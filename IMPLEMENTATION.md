@@ -295,9 +295,12 @@ guarded.
    `test_capture_restores_preview_settings` (star cadence survives a capture).
 2. ✅ **HW — Lock bypass**: `manager.apply_settings` and `set_zoom` now run `async with self.lock`,
    so a PATCH/zoom can't push controls while a capture has the sensor reconfigured.
-3. ✅ **HW — Manual exposure capped in normal preview** (`settings.to_controls`): normal mode now
-   raises the `FrameDurationLimits` ceiling to the requested exposure when AE is off, so a manual
-   2 s exposure isn't clamped to ~33 ms. Test: `test_normal_mode_long_manual_exposure_raises_frame_duration`.
+3. ↩️ **Reversed on hardware.** The M3 review thought a long manual exposure being clamped in the
+   *normal* preview was a bug, so `to_controls` raised the frame-duration ceiling to fit it. On the
+   real IMX219 that made the normal preview crawl and overexpose. Correct behavior: the normal
+   preview always stays at video rate; a long exposure applies to **captures** (their own still
+   config), and only **star mode** slows the preview. Test:
+   `test_normal_mode_keeps_fast_preview_even_with_long_exposure`.
 4. ✅ **Validation gap → 500**: `PATCH /api/camera/settings` now takes a typed `SettingsUpdate`
    model (`Literal` mode, numeric bounds) → bad input is a 400, bogus `preview_mode` rejected.
    Test: `test_patch_rejects_bad_input_with_400`.
