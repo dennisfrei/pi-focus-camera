@@ -22,6 +22,12 @@
 
   const gb = (bytes: number) => (bytes / 1024 ** 3).toFixed(1)
 
+  // Field warnings: the Pi soft-throttles around 80 °C, and raw subs fill a disk fast.
+  const TEMP_WARN_C = 75
+  const DISK_WARN_BYTES = 1024 ** 3 // 1 GB
+  const tempWarn = $derived(system?.cpu_temp_c != null && system.cpu_temp_c > TEMP_WARN_C)
+  const diskWarn = $derived(system != null && system.disk.free < DISK_WARN_BYTES)
+
   function fmtUptime(s: number | null): string {
     if (s == null) return '—'
     const d = Math.floor(s / 86400)
@@ -55,11 +61,15 @@
     </div>
     <div class="row">
       <span class="label">CPU temp</span>
-      <span class="value">{system.cpu_temp_c != null ? `${system.cpu_temp_c} °C` : '—'}</span>
+      <span class="value" class:warn={tempWarn}>
+        {system.cpu_temp_c != null ? `${system.cpu_temp_c} °C` : '—'}{tempWarn ? ' ⚠' : ''}
+      </span>
     </div>
     <div class="row">
       <span class="label">Disk free</span>
-      <span class="value">{gb(system.disk.free)} / {gb(system.disk.total)} GB</span>
+      <span class="value" class:warn={diskWarn}>
+        {gb(system.disk.free)} / {gb(system.disk.total)} GB{diskWarn ? ' ⚠' : ''}
+      </span>
     </div>
     <div class="row">
       <span class="label">Uptime</span>
@@ -98,6 +108,10 @@
   }
   .value {
     font-variant-numeric: tabular-nums;
+  }
+  .value.warn {
+    color: var(--accent);
+    font-weight: 600;
   }
   .power {
     display: flex;

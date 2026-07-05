@@ -10,7 +10,7 @@
   import SystemPanel from './components/SystemPanel.svelte'
   import Help from './components/Help.svelte'
   import { connected, connectLive } from './lib/live'
-  import { nightMode } from './lib/stores'
+  import { nightMode, dimLevel } from './lib/stores'
 
   let helpOpen = $state(false)
 
@@ -18,9 +18,12 @@
     connectLive()
   })
 
-  // Apply the night-vision theme to the document root.
+  // Apply the night-vision theme + screen dimmer to the document root.
   $effect(() => {
     document.documentElement.dataset.night = $nightMode ? 'on' : 'off'
+  })
+  $effect(() => {
+    document.documentElement.style.filter = $dimLevel < 1 ? `brightness(${$dimLevel})` : ''
   })
 </script>
 
@@ -30,6 +33,10 @@
     <h1>Prime Focus Camera</h1>
   </div>
   <div class="actions">
+    <label class="dim" title="Screen brightness">
+      🔅
+      <input type="range" min="0.3" max="1" step="0.05" bind:value={$dimLevel} />
+    </label>
     <button class="toggle" onclick={() => (helpOpen = true)} aria-label="Help">? Help</button>
     <button class="toggle" onclick={() => nightMode.update((v) => !v)}>
       {$nightMode ? '🔴 Night' : '⚪ Normal'}
@@ -88,7 +95,23 @@
   }
   .actions {
     display: flex;
+    align-items: center;
     gap: 0.4rem;
+  }
+  .dim {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.8rem;
+  }
+  .dim input {
+    width: 64px;
+    accent-color: var(--accent);
+  }
+  @media (max-width: 520px) {
+    .dim input {
+      width: 44px;
+    }
   }
   .toggle {
     background: transparent;
