@@ -13,6 +13,7 @@ must be touched on the event-loop thread, so frames are handed over with
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import io
 import logging
 import os
@@ -147,6 +148,7 @@ class Picamera2Camera:
         if was_recording:
             self._picam2.stop_recording()
             self._recording = False
+        started = False
         try:
             controls = (
                 {"AeEnable": True}
@@ -163,17 +165,29 @@ class Picamera2Camera:
             )
             self._picam2.configure(still)
             self._picam2.start()
+            started = True
             request = self._picam2.capture_request()
             try:
                 image = request.make_image("main").convert("RGB")
                 buf = io.BytesIO()
                 image.save(buf, format="JPEG", quality=92)
                 width, height = image.size
-                raw_bytes = self._dng_bytes(request) if raw else None
+                raw_bytes = None
+                if raw:
+                    # Best-effort: a DNG failure (e.g. a picamera2/pidng version skew) must not lose
+                    # the JPEG or wedge the camera — save what we have and log why.
+                    try:
+                        raw_bytes = self._dng_bytes(request)
+                    except Exception:
+                        logger.exception("DNG save failed — saving JPEG only (check pidng version)")
             finally:
                 request.release()
-            self._picam2.stop()
         finally:
+            # Always stop before restoring the preview — configuring a running camera raises
+            # "Camera must be stopped before configuring".
+            if started:
+                with contextlib.suppress(Exception):
+                    self._picam2.stop()
             if was_recording:
                 self._start_sync()  # bring the preview stream back up
         return CaptureResult(
