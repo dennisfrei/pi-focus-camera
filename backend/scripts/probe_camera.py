@@ -19,8 +19,8 @@ try:
     from picamera2 import Picamera2
 except ImportError:
     sys.exit(
-        "picamera2 not importable — install the Pi camera stack first "
-        "(see backend/requirements-pi.txt / CONCEPT.md §7). This script only runs on the Pi."
+        "picamera2 not importable — install the Pi camera stack first: apt python3-picamera2 with a "
+        "--system-site-packages venv (Path B), or `uv sync --extra pi` (Path A). See CONCEPT.md §7."
     )
 
 from app.camera.profile import build_profile

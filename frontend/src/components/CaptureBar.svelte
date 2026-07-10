@@ -1,6 +1,7 @@
 <script lang="ts">
   import { live } from '../lib/live'
   import { capture, cancelCapture, type FrameType } from '../lib/api'
+  import { formatExposure } from '../lib/format'
   import { bumpCaptures } from '../lib/stores'
   import FrameTypeSelect from './FrameTypeSelect.svelte'
 
@@ -18,10 +19,7 @@
   const shutterLabel = $derived.by(() => {
     if (!settings) return 'Capture'
     if (settings.ae_enable) return 'Capture (auto)'
-    const us = settings.exposure_us
-    if (us >= 1_000_000) return `Capture ${(us / 1_000_000).toFixed(1)} s`
-    if (us >= 1000) return `Capture ${(us / 1000).toFixed(0)} ms`
-    return `Capture ${us} µs`
+    return `Capture ${formatExposure(settings.exposure_us)}`
   })
 
   async function shoot() {

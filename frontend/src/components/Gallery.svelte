@@ -5,10 +5,10 @@
     thumbUrl,
     imageUrl,
     rawUrl,
-    formatBytes,
     type Capture,
     type FrameType,
   } from '../lib/api'
+  import { formatBytes, formatExposure } from '../lib/format'
   import { capturesChanged, bumpCaptures } from '../lib/stores'
 
   let items = $state<Capture[]>([])
@@ -69,11 +69,8 @@
   function fmtSettings(s: Record<string, number | boolean | string>): string {
     const parts: string[] = []
     if (s.frame_type) parts.push(String(s.frame_type))
-    const us = Number(s.exposure_us)
     if (s.ae_enable) parts.push('auto exp')
-    else if (us >= 1_000_000) parts.push(`${(us / 1_000_000).toFixed(1)} s`)
-    else if (us >= 1000) parts.push(`${(us / 1000).toFixed(0)} ms`)
-    else if (us) parts.push(`${us} µs`)
+    else if (s.exposure_us) parts.push(formatExposure(Number(s.exposure_us)))
     if (s.gain != null) parts.push(`gain ${Number(s.gain).toFixed(1)}×`)
     if (s.preview_mode) parts.push(String(s.preview_mode))
     if (s.raw) parts.push('raw')

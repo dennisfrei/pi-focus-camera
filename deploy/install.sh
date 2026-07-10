@@ -34,8 +34,7 @@ uv venv --system-site-packages --python /usr/bin/python3
 # simplejpeg C extensions are built against that numpy; a pip numpy 2.x in the venv would shadow it
 # and break simplejpeg with a "numpy.dtype size changed" ABI error. Our code runs fine on apt numpy.
 REQ="$(mktemp)"
-uv export --no-dev --no-emit-project --frozen --no-hashes -o "$REQ"
-sed -i '/^numpy/d' "$REQ"
+uv export --no-dev --no-emit-project --frozen --no-hashes --no-emit-package numpy -o "$REQ"
 uv pip install -r "$REQ"
 uv pip install -e . --no-deps
 rm -f "$REQ"

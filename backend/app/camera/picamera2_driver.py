@@ -56,22 +56,30 @@ def _ensure_dng_compat() -> None:
         if cls is not None:
             break
     if cls is None:
+        logger.warning("pidng DNG-compat shim: Picamera2Camera not found — DNG may fail")
         return
 
     orig = cls.__init__
     if getattr(orig, "_pfc_patched", False):
         return
-    params = inspect.signature(orig).parameters.values()
+    try:
+        params = list(inspect.signature(orig).parameters.values())
+    except (ValueError, TypeError):
+        return  # no introspectable signature (C impl) — can't safely shim
     if any(p.kind == p.VAR_POSITIONAL for p in params):
         return  # already accepts *args — nothing to fix
     keep = sum(1 for p in params if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)) - 1
+    accepts_kwargs = any(p.kind == p.VAR_KEYWORD for p in params)
+    allowed_kw = {p.name for p in params if p.kind in (p.POSITIONAL_OR_KEYWORD, p.KEYWORD_ONLY)}
 
     def _init(self, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003
-        orig(self, *args[:keep], **kwargs)
+        # Drop the extra positional/keyword `model` the newer picamera2 passes (cosmetic DNG tag).
+        kw = kwargs if accepts_kwargs else {k: v for k, v in kwargs.items() if k in allowed_kw}
+        orig(self, *args[:keep], **kw)
 
     _init._pfc_patched = True  # type: ignore[attr-defined]
     cls.__init__ = _init
-    logger.info("Applied pidng DNG compatibility shim (dropped extra positional arg)")
+    logger.info("Applied pidng DNG compatibility shim (drops the extra picamera2 model arg)")
 
 
 class _BrokerOutput(io.BufferedIOBase):
@@ -221,8 +229,8 @@ class Picamera2Camera:
                         raw_bytes = self._dng_bytes(request)
                     except Exception:
                         logger.exception(
-                            "DNG save failed — saved JPEG only. Fix: in backend/, run "
-                            "`uv pip install -U pidng --no-deps` (picamera2 needs a newer pidng)."
+                            "DNG save failed — saved JPEG only. The driver already shims the known "
+                            "picamera2/pidng arg-count skew; if this persists it's a different fault."
                         )
             finally:
                 request.release()

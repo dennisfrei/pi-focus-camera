@@ -11,6 +11,11 @@
     type CameraSettings,
     type Preset,
   } from '../lib/api'
+  import { formatExposure } from '../lib/format'
+
+  // Above this, libcamera can't fit the exposure in a video frame, so the *normal* preview is
+  // capped here even though the value still applies to captures (see the hint below).
+  const NORMAL_PREVIEW_MAX_US = 33_333
 
   let profile = $state<CameraProfile | null>(null)
   let settings = $state<CameraSettings | null>(null)
@@ -32,11 +37,14 @@
     settings ? (Math.log10(settings.exposure_us) - logMin) / (logMax - logMin) : 0,
   )
 
-  function fmtExposure(us: number): string {
-    if (us >= 1_000_000) return `${(us / 1_000_000).toFixed(2)} s`
-    if (us >= 1000) return `${(us / 1000).toFixed(0)} ms`
-    return `${Math.round(us)} µs`
-  }
+  // A long manual exposure only slows the live view in star mode; in normal mode the preview stays
+  // fast (capped) and the value applies to captures — surface that so the slider isn't "broken".
+  const previewCapped = $derived(
+    settings != null &&
+      !settings.ae_enable &&
+      settings.preview_mode !== 'star' &&
+      settings.exposure_us > NORMAL_PREVIEW_MAX_US,
+  )
 
   async function apply(update: Partial<CameraSettings>) {
     busy = true
@@ -119,7 +127,7 @@
     <div class="slider" class:disabled={settings.ae_enable}>
       <div class="srow">
         <span>Exposure</span>
-        <span class="val">{fmtExposure(settings.exposure_us)}</span>
+        <span class="val">{formatExposure(settings.exposure_us)}</span>
       </div>
       <input
         type="range"
@@ -131,6 +139,9 @@
         oninput={onExposureInput}
         onchange={onExposureCommit}
       />
+      {#if previewCapped}
+        <p class="hint">applies to captures — the live preview is capped at 33 ms (use Star mode for a long-exposure preview)</p>
+      {/if}
     </div>
 
     <div class="slider" class:disabled={settings.ae_enable}>

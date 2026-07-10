@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
+  import { onMount, onDestroy } from 'svelte'
   import { getSystem, setFocusRoi, setFocusZoom, type Roi } from '../lib/api'
 
   // Live MJPEG preview with a focus ROI you can draw, a digital zoom into that ROI, and overlays.
@@ -32,14 +32,21 @@
   function reconnectStream() {
     clearTimeout(reconnectTimer)
     loaded = false
-    errored = false
     src = `/api/stream.mjpg?t=${Date.now()}`
   }
 
   function onStreamError() {
     errored = true
+    clearTimeout(reconnectTimer) // don't stack timers across repeated error events
     reconnectTimer = setTimeout(reconnectStream, 1500)
   }
+
+  // On unmount (e.g. switching to the Gallery tab) stop any pending retry and drop the stream src so
+  // the browser aborts the never-ending MJPEG connection instead of leaving a zombie broker client.
+  onDestroy(() => {
+    clearTimeout(reconnectTimer)
+    src = ''
+  })
 
   // Selection rectangle (normalized) currently being drawn.
   let sel = $derived(
@@ -136,7 +143,10 @@
     alt="Live camera preview"
     class:hidden={!loaded}
     style:transform
-    onload={() => (loaded = true)}
+    onload={() => {
+      loaded = true
+      errored = false
+    }}
     onerror={onStreamError}
   />
 

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte'
   import { live, connected } from '../lib/live'
   import { getSystem, powerHost, type SystemInfo } from '../lib/api'
+  import { formatBytes } from '../lib/format'
 
   let system = $state<SystemInfo | null>(null)
 
@@ -19,8 +20,6 @@
     const timer = setInterval(load, 5000) // temp/disk drift slowly; 5 s is plenty
     return () => clearInterval(timer)
   })
-
-  const gb = (bytes: number) => (bytes / 1024 ** 3).toFixed(1)
 
   // Field warnings: the Pi soft-throttles around 80 °C, and raw subs fill a disk fast.
   const TEMP_WARN_C = 75
@@ -78,7 +77,7 @@
     <div class="row">
       <span class="label">Disk free</span>
       <span class="value" class:warn={diskWarn}>
-        {gb(system.disk.free)} / {gb(system.disk.total)} GB{diskWarn ? ' ⚠' : ''}
+        {formatBytes(system.disk.free)} / {formatBytes(system.disk.total)}{diskWarn ? ' ⚠' : ''}
       </span>
     </div>
     <div class="row">

@@ -270,7 +270,7 @@ build.
 | Stale UI after deploying an update | PWA shell cache — reload the page once (or clear site data) |
 | `astrocam.local` not resolving | avahi not running (`systemctl status avahi-daemon`) or the client OS lacks mDNS — use `http://10.42.0.1:8080` on the AP |
 | Disk filling up | Raw files are big. Set `PFC_CAPTURES_DIR` to a USB drive; the system panel shows free space |
-| Dev box: `uv sync` tries to build picamera2 | It shouldn't — the Pi stack isn't in `pyproject.toml`. You ran `uv pip install -r requirements-pi.txt` on a dev box; recreate the venv (`rm -rf .venv && uv sync`) |
+| Dev box: `uv sync` tries to build picamera2 | The Pi stack is the optional `pi` extra, so a plain `uv sync` skips it. If it's building, you ran `uv sync --extra pi` on a dev box; recreate the venv (`rm -rf .venv && uv sync`) |
 
 ## 6. Known issues
 

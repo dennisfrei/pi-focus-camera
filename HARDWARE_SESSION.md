@@ -106,9 +106,11 @@ countdown and "preview paused", then preview **resumes**; **raw** produces a rea
 
 **Status:** ✅ *JPEG + DNG capture confirmed on hardware 2026-07-05.* The `_capture_sync` path
 (stop_recording → still config → capture_request → `make_image` → `save_dng` → restore preview) works.
-Two gotchas were fixed on the Pi: (a) a **picamera2/pidng version skew** made `save_dng` throw —
-`install.sh` now installs a newer `pidng --no-deps`; (b) a failed capture used to wedge the camera
-(configure-while-running) — now it always stops before restoring and the DNG is best-effort.
+Two gotchas were fixed on the Pi: (a) a **picamera2/pidng version skew** made `save_dng` throw
+(picamera2 passes a `model` arg no released pidng accepts) — the driver applies a small
+compatibility shim (`_ensure_dng_compat`) so apt's pidng works, no pip pidng needed; (b) a failed
+capture used to wedge the camera (configure-while-running) — now it always stops before restoring
+and the DNG is best-effort (a failure still saves the JPEG).
 
 **Still to confirm on the sky / at leisure:**
 - **DNG validity** — open a raw in Siril/DSS to confirm it's a real sensor DNG.
