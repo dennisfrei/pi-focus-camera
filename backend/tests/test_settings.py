@@ -59,9 +59,9 @@ def test_to_controls_star_mode_uses_long_frame_duration() -> None:
     lo, hi = controls["FrameDurationLimits"]
     assert lo == hi == 2_000_000  # matches the requested exposure
 
-    # Normal mode caps the frame period at video rates.
+    # Normal mode caps the frame period at video rates (much shorter than any star exposure).
     normal = camsettings.to_controls(CameraSettings(preview_mode="normal"))
-    assert normal["FrameDurationLimits"][1] <= 33_333
+    assert normal["FrameDurationLimits"] == camsettings._NORMAL_FRAME_US
 
 
 def test_star_mode_has_a_floor_even_on_auto() -> None:

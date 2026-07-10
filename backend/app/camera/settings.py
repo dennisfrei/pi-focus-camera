@@ -14,8 +14,10 @@ from .profile import CameraProfile
 
 PreviewMode = Literal["normal", "star"]
 
-# Frame period for the responsive video preview (~30 fps ceiling).
-_NORMAL_FRAME_US = (8_333, 33_333)
+# Frame period for the video preview: 15–30 fps. Capping the framerate (vs the old 120 fps ceiling)
+# roughly halves the software JPEG encoder's work — a Pi 4 running the encoder 24/7 was throttling at
+# 80 °C, and 15–30 fps is plenty for focusing/framing.
+_NORMAL_FRAME_US = (33_333, 66_666)
 # Default long frame period for star preview when exposure is on auto.
 _STAR_DEFAULT_US = 1_000_000
 

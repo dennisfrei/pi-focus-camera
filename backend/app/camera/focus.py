@@ -9,9 +9,11 @@ Two modes, because focusing on a detailed scene and on a lone star are different
   encloses half the star's flux. It shrinks toward focus, so you *minimize* it; it's stable and
   near-linear near focus (what SharpCap/NINA use). We also return **peak** intensity (maximize).
 
-Analysis runs on a grayscale ``uint8`` frame — on the Pi the picamera2 *lores* luma plane, on the
-mock a synthesized one — never a decoded JPEG, whose quantization would crush faint-star signal.
-Everything is plain numpy so it runs on the Pi. All analysis can be restricted to a normalized ROI.
+Analysis runs on a grayscale ``uint8`` frame. On real hardware and the mock alike it currently comes
+from decoding the preview JPEG (:func:`analyze`) — libjpeg is told to emit grayscale at half size
+(DCT-domain, cheap on the Pi). A dedicated uncompressed lores luma plane (CONCEPT §4) is deferred; it
+destabilized the preview pipeline on hardware, so JPEG-decode is used everywhere for now. Everything
+is plain numpy. All analysis can be restricted to a normalized ROI.
 """
 
 from __future__ import annotations
@@ -130,6 +132,13 @@ def analyze_luma(luma: np.ndarray, roi: ROI | None = None, mode: str = "scene") 
 
 
 def analyze(jpeg: bytes, roi: ROI | None = None, mode: str = "scene") -> dict:
-    """Decode a preview JPEG to luma and analyze it — the fallback when no luma plane is available."""
-    luma = np.asarray(Image.open(io.BytesIO(jpeg)).convert("L"))
+    """Decode a preview JPEG to luma and analyze it.
+
+    ``draft`` lets libjpeg emit grayscale at half resolution straight from the DCT coefficients —
+    several times cheaper than a full RGB decode + convert, which matters at ``focus_hz`` on a Pi.
+    The metric is scale-invariant (you minimize/maximize a trend), so the downscale is harmless.
+    """
+    img = Image.open(io.BytesIO(jpeg))
+    img.draft("L", (img.width // 2, img.height // 2))
+    luma = np.asarray(img.convert("L"))
     return analyze_luma(luma, roi, mode)

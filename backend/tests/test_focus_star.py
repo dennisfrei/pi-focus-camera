@@ -64,13 +64,12 @@ def test_scene_mode_still_uses_laplacian() -> None:
     assert focus.analyze_luma(detail, mode="scene")["focus_metric"] == "Laplacian"
 
 
-def test_mock_synthesizes_a_luma_plane() -> None:
+def test_mock_has_no_luma_plane_like_hardware() -> None:
+    # The mock matches the real driver: no dedicated luma plane, so focus decodes the preview JPEG.
     cam = MockCamera(200, 150)
-    assert cam.get_luma() is None  # nothing rendered yet
-    cam._render(0.0)
-    luma = cam.get_luma()
-    assert luma is not None
-    assert luma.shape == (150, 200)  # (h, w), 2D grayscale — not a decoded JPEG
+    assert cam.get_luma() is None
+    frame = cam._render(0.0)
+    assert isinstance(frame, bytes) and frame  # a JPEG the manager can decode
     assert cam.profile.supports_hw_zoom is False  # single source of truth: the profile
 
 

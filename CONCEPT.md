@@ -140,11 +140,13 @@ shape the design:
    why manual controls (M3) are sequenced **before** on-sky focus assist (M4) in the roadmap.
 
 ### Focus data path (on device)
-Two dev-phase shortcuts must be replaced on real hardware:
-- **Analyze uncompressed luma, not the JPEG.** The dev implementation decodes the preview JPEG —
-  fine on the mock, but JPEG quantization crushes faint-star signal exactly where it matters, and
-  the decode is wasted CPU. picamera2 can deliver a **lores YUV stream** alongside the main one;
-  the driver Protocol grows a "latest luma plane" method (the mock synthesizes it).
+- **Luma source — currently the decoded JPEG (lores luma deferred).** The ideal is a **lores YUV
+  stream** alongside the main one so the metric analyzes uncompressed luma (JPEG quantization can
+  crush faint-star signal). That was tried on hardware and destabilized the preview pipeline (the
+  extra stream + per-frame grab contended with the software encoder), so it was **removed**: focus
+  now decodes the main preview JPEG everywhere — the driver's `get_luma()` returns None and the
+  manager decodes (libjpeg grayscale at half size — cheap). Revisit a correct lores path if the
+  JPEG metric proves inadequate on the sky (see HARDWARE_SESSION.md).
 - **True 1:1 zoom via `ScalerCrop`.** CSS-zooming the downscaled preview is fine for framing but
   useless for critical focus. libcamera's `ScalerCrop` control crops a sensor region into the
   existing stream → real sensor pixels through the same MJPEG path, no reconfiguration.

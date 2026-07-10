@@ -59,6 +59,9 @@ class CameraManager:
         self._zoom_roi: focus.ROI | None = None  # active hardware crop, re-applied after a capture
         self.metrics: dict = {"focus_score": 0.0, "histogram": [], "clipping": 0.0, "roi": None}
         self._analyze_task: asyncio.Task | None = None
+        # Connected /api/live WebSocket clients — the only consumer of the focus metrics. When 0,
+        # the analyze loop skips its work (idle CPU/heat saving on the Pi).
+        self.live_clients = 0
 
         # Camera controls (validated, sensor-agnostic)
         self.settings = CameraSettings()
@@ -300,15 +303,16 @@ class CameraManager:
     async def _analyze_loop(self) -> None:
         """Compute focus/histogram metrics off the newest preview frame, throttled.
 
-        The luma fetch + numpy is CPU-bound (and the real driver's capture blocks), so it runs in a
-        worker thread. A freshly published JPEG is the "new frame" signal; if analysis can't keep
-        up, frames are simply skipped.
+        The JPEG decode + numpy is CPU-bound, so it runs in a worker thread. A freshly published JPEG
+        is the "new frame" signal; if analysis can't keep up, frames are simply skipped. When no live
+        client is connected, the metrics feed nothing, so we skip the decode entirely — this is real
+        idle CPU/heat saved on the Pi (the metric is only read over the WS).
         """
         interval = 1.0 / max(self.focus_hz, 1)
         last_frame: bytes | None = None
         while True:
             frame = self.broker.latest
-            if frame is not None and frame is not last_frame:
+            if self.live_clients > 0 and frame is not None and frame is not last_frame:
                 last_frame = frame
                 try:
                     self.metrics = await anyio.to_thread.run_sync(

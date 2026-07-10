@@ -40,9 +40,6 @@ class MockCamera:
         self._broker: FrameBroker | None = None
         self._task: asyncio.Task | None = None
         self._running = False
-        # Latest synthesized luma plane (uncompressed) for the focus metric — the mock's stand-in
-        # for the picamera2 lores YUV plane, so analysis never touches a decoded JPEG.
-        self._luma: np.ndarray | None = None
 
         # A fixed field of faint background stars (x, y in [0,1], intrinsic brightness). Intrinsic
         # values are low so they only emerge as exposure/gain rise — the whole point of star
@@ -74,7 +71,8 @@ class MockCamera:
         self._controls.update(values)
 
     def get_luma(self) -> np.ndarray | None:
-        return self._luma
+        # Matches the real driver: no dedicated luma plane — the manager decodes the preview JPEG.
+        return None
 
     async def set_zoom(self, roi: tuple[float, float, float, float] | None) -> None:
         # No sensor to crop; the frontend handles the mock's zoom in CSS.
@@ -88,8 +86,16 @@ class MockCamera:
         return 1.0 / self._fps
 
     def _brightness_scale(self) -> float:
-        """How exposure time + gain brighten the scene, relative to the 20 ms / gain 1 baseline."""
+        """How exposure time + gain brighten the *preview*, relative to the 20 ms / gain 1 baseline.
+
+        Mirror the sensor: libcamera can't expose longer than the frame duration, so the preview
+        exposure is capped by FrameDurationLimits — that's why a long manual exposure only brightens
+        the live view in star mode (long frame duration), not in normal mode (~33 ms).
+        """
         exp = float(self._controls.get("ExposureTime", 20_000))
+        fdl = self._controls.get("FrameDurationLimits")
+        if fdl:
+            exp = min(exp, float(fdl[1]))
         gain = float(self._controls.get("AnalogueGain", 1.0))
         return (exp / 20_000.0) * gain
 
@@ -143,9 +149,6 @@ class MockCamera:
         draw.text(
             (12, 12), f"MockCamera  t={t:5.1f}s  exp={exp}us  gain={gain}", fill=(255, 80, 80)
         )
-
-        # Stash the uncompressed luma for the focus metric (before JPEG encoding loses precision).
-        self._luma = np.asarray(img.convert("L"))
 
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=80)

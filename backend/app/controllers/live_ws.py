@@ -48,6 +48,7 @@ async def live(socket: WebSocket) -> None:
             )
             await asyncio.sleep(interval)
 
+    manager.live_clients += 1  # wakes the focus analyze loop out of its idle skip
     push_task = asyncio.create_task(push())
     try:
         # Blocks until the client sends something or disconnects.
@@ -55,6 +56,7 @@ async def live(socket: WebSocket) -> None:
     except WebSocketDisconnect:
         pass
     finally:
+        manager.live_clients -= 1
         push_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await push_task
