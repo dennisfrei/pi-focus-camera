@@ -69,6 +69,17 @@ def test_star_mode_has_a_floor_even_on_auto() -> None:
     assert controls["FrameDurationLimits"][0] >= 500_000
 
 
+def test_frame_duration_envelope_widens_for_star() -> None:
+    """Star preview must reconfigure the stream to allow up to the sensor's max exposure; normal
+    keeps the fast video envelope (so runtime clamping can't silently swallow a long star exposure)."""
+    normal = camsettings.frame_duration_envelope(CameraSettings(preview_mode="normal"), PROFILE)
+    assert normal == camsettings._NORMAL_FRAME_US
+
+    star = camsettings.frame_duration_envelope(CameraSettings(preview_mode="star"), PROFILE)
+    assert star[1] == int(PROFILE.exposure_us.max)  # up to the sensor ceiling
+    assert star[1] > normal[1]
+
+
 def test_patch_endpoint_clamps_and_persists(client: TestClient) -> None:
     # Out-of-range gain is clamped to the mock's 16x ceiling, unknown keys dropped.
     resp = client.patch("/api/camera/settings", json={"gain": 999.0, "nope": 1})

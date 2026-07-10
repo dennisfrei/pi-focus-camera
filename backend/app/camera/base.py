@@ -61,6 +61,14 @@ class Camera(Protocol):
         """Crop the sensor to ``roi`` (normalized) for a 1:1 zoom, or None to restore full frame."""
         ...
 
+    async def set_frame_duration_envelope(self, lo_us: int, hi_us: int) -> None:
+        """Reconfigure the preview stream so runtime frame durations in [lo, hi] µs are allowed.
+
+        Needed because some picamera2 builds clamp runtime FrameDurationLimits to the configured
+        video mode — so entering star preview must widen the envelope, not just push a control.
+        """
+        ...
+
     async def capture_still(
         self, exposure_us: int, gain: float, raw: bool, ae: bool
     ) -> CaptureResult:

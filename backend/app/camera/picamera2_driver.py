@@ -112,20 +112,39 @@ class Picamera2Camera:
         self._broker: FrameBroker | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._recording = False
+        # Frame-duration range the video config is built to allow (default = fast normal preview).
+        # The manager widens this via set_frame_duration_envelope when entering star preview.
+        self._fd_envelope: tuple[int, int] = (33_333, 66_666)
 
     async def start(self, broker: FrameBroker) -> None:
         self._broker = broker
         self._loop = asyncio.get_running_loop()
         await anyio.to_thread.run_sync(self._start_sync)
 
+    async def set_frame_duration_envelope(self, lo_us: int, hi_us: int) -> None:
+        envelope = (int(lo_us), int(hi_us))
+        if envelope == self._fd_envelope:
+            return
+        self._fd_envelope = envelope
+        if self._recording:
+            # Reconfigure the running stream so the new frame-duration range is actually permitted.
+            await anyio.to_thread.run_sync(self._reconfigure_sync)
+
+    def _reconfigure_sync(self) -> None:
+        self._picam2.stop_recording()
+        self._recording = False
+        self._start_sync()
+
     def _start_sync(self) -> None:
         # Single main stream, JPEG-encoded by the hardware-friendly recording path (the official
         # picamera2 MJPEG recipe). Focus analyzes the decoded main JPEG (via the manager's fallback),
         # so there's no second stream / capture to contend with the encoder and stall the preview.
-        # No control overrides here — the default video mode is fast, so the preview connects quickly
-        # and stays responsive. The manager applies the live settings (normal-rate or, in star mode,
-        # a long frame duration) right after start.
-        config = self._picam2.create_video_configuration(main={"size": (self._w, self._h)})
+        # FrameDurationLimits sets the range this video config allows; the manager reconfigures it
+        # (fast for normal, wide up to the sensor max for star) so long star exposures aren't clamped.
+        config = self._picam2.create_video_configuration(
+            main={"size": (self._w, self._h)},
+            controls={"FrameDurationLimits": self._fd_envelope},
+        )
         self._picam2.configure(config)
         output = _BrokerOutput(self._emit)
         self._picam2.start_recording(JpegEncoder(), FileOutput(output), name="main")

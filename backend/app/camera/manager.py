@@ -277,6 +277,12 @@ class CameraManager:
         async with self.lock:
             merged = camsettings.merge(self.settings, update)
             merged = camsettings.clamp(merged, self.profile)
+            # A preview-mode change may need the stream reconfigured (star preview needs a wide
+            # frame-duration envelope, or the long exposure is silently clamped) — do it before
+            # pushing the per-frame controls so the new range is already permitted.
+            if merged.preview_mode != self.settings.preview_mode:
+                lo, hi = camsettings.frame_duration_envelope(merged, self.profile)
+                await self.camera.set_frame_duration_envelope(lo, hi)
             await self.camera.set_controls(camsettings.to_controls(merged))
             self.settings = merged
             logger.info("Applied settings: %s", merged.as_dict())

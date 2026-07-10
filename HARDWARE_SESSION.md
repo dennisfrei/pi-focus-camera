@@ -70,10 +70,13 @@ manual exposure set — a long preview frame duration makes the preview crawl an
 
 **Watch for:**
 - **Star-mode long exposure in the preview.** `to_controls` sets a long `FrameDurationLimits` at
-  runtime via `set_controls`. On some picamera2 versions that's clamped to the video mode's default
-  and won't take. If star preview doesn't actually slow down, the fix is to *reconfigure* the video
-  stream for star mode (wide `FrameDurationLimits`, possibly a raw size selecting the long-exposure
-  sensor mode) rather than only `set_controls`. Do this per-mode so the normal preview stays fast.
+  runtime via `set_controls`, but on some picamera2 versions that's clamped to the video mode's
+  default and won't take. So a preview-mode change now also *reconfigures* the stream: on the
+  mode switch the manager calls `camera.set_frame_duration_envelope(*frame_duration_envelope(...))`,
+  which rebuilds the video config with a wide `FrameDurationLimits` (up to the sensor max) for star
+  and the fast range for normal — so the long exposure isn't silently clamped and normal stays fast.
+  If star preview *still* doesn't slow down, the next lever is selecting the long-exposure sensor
+  mode (a `raw` size) in that config, not just the frame-duration range.
 - All control changes run under the manager lock; a slider drag commits once on release.
 
 ---

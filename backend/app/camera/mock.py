@@ -78,6 +78,10 @@ class MockCamera:
         # No sensor to crop; the frontend handles the mock's zoom in CSS.
         return None
 
+    async def set_frame_duration_envelope(self, lo_us: int, hi_us: int) -> None:
+        # No real config to reconfigure; the mock honors FrameDurationLimits from set_controls.
+        return None
+
     def _interval(self) -> float:
         """Preview cadence, driven by the requested frame duration (so star mode visibly slows)."""
         fdl = self._controls.get("FrameDurationLimits")

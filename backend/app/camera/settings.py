@@ -70,3 +70,16 @@ def to_controls(settings: CameraSettings) -> dict:
         controls["FrameDurationLimits"] = _NORMAL_FRAME_US
 
     return controls
+
+
+def frame_duration_envelope(settings: CameraSettings, profile: CameraProfile) -> tuple[int, int]:
+    """The frame-duration range the *video stream* must be configured to allow for this mode.
+
+    Runtime ``FrameDurationLimits`` (from :func:`to_controls`) is clamped to the configured video
+    mode's range on some picamera2 builds, so switching to star preview must *reconfigure* the stream
+    with a wide envelope (up to the sensor's max exposure) — otherwise the long exposure is silently
+    ignored and the sky stays black. Normal mode keeps the fast video envelope.
+    """
+    if settings.preview_mode == "star":
+        return (min(_NORMAL_FRAME_US[0], 100_000), int(profile.exposure_us.max))
+    return _NORMAL_FRAME_US
