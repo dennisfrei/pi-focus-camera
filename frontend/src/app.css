@@ -1,0 +1,41 @@
+:root {
+  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+
+  /* Default dark theme */
+  --bg: #0b0d12;
+  --fg: #e6e8ee;
+  --muted: #8a90a0;
+  --line: #232733;
+  --accent: #4f8cff;
+}
+
+/* Night-vision: red-on-black to preserve dark adaptation at the telescope. */
+:root[data-night='on'] {
+  --bg: #000;
+  --fg: #ff5a4d;
+  --muted: #7a1b16;
+  --line: #2a0908;
+  --accent: #ff2d1a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: inherit;
+}

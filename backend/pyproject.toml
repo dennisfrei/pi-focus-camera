@@ -1,0 +1,72 @@
+[project]
+name = "pi-focus-camera"
+version = "0.1.0"
+description = "Prime-focus telescope camera backend (Litestar + picamera2)"
+readme = "../README.md"
+# Dev pins 3.14 via .python-version, but the floor is 3.11 so the Pi's apt python3-picamera2 can run
+# the app on its system Python too (deploy "Path B", CONCEPT.md §7) — Raspberry Pi OS **Bookworm**
+# ships Python 3.11, only Trixie is 3.13. Keep this at the oldest supported Pi OS Python.
+requires-python = ">=3.11"
+dependencies = [
+    "litestar[standard]>=2.12",
+    "uvicorn[standard]>=0.30",
+    "anyio>=4.4",
+    "numpy>=2.0",
+    "pillow>=10.4",
+    "pydantic-settings>=2.4",
+    "aiosqlite>=0.20",
+]
+
+# Raspberry Pi camera stack — the pip route (deploy "Path A", CONCEPT.md §7). It's an *optional*
+# extra, so a plain `uv sync` on a dev box never touches it; install on-device with
+# `uv sync --extra pi`. NOTE: `picamera2` pulls `python-prctl`, which needs the libcap headers to
+# build — `sudo apt install -y libcap-dev` first. `rpi-kms` (pykms/kmsxx) is deliberately NOT here:
+# it's only for a local DRM preview window, which this headless HTTP-streaming app never uses, and
+# it needs a heavy kmsxx build (cmake + libkms++-dev/libfmt-dev/libdrm-dev). The most reliable route
+# on the Pi is still Path B (apt `python3-picamera2` + a `--system-site-packages` venv).
+[project.optional-dependencies]
+pi = [
+    "picamera2>=0.3.22",
+    "rpi-libcamera>=0.1a6",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.6",
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.27",
+    "poethepoet>=0.29",
+]
+
+[tool.poe.tasks]
+dev = "litestar --app app.main:app run --reload --host 0.0.0.0 --port 8080"
+serve = "litestar --app app.main:app run --host 0.0.0.0 --port 8080"
+test = "pytest"
+lint = "ruff check ."
+format = "ruff format ."
+
+[tool.uv]
+# `python-prctl` (a picamera2 dependency) ships no wheels and needs the libcap headers to build, so
+# `uv lock` would otherwise try to compile it just to read its metadata. Declare that metadata here
+# (it has no runtime deps) so locking never builds it — the real build only happens on the Pi at
+# `uv sync --extra pi`, where `sudo apt install -y libcap-dev` is required.
+dependency-metadata = [
+    { name = "python-prctl", version = "1.8.1", requires-dist = [] },
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+# Lint to the DEPLOYMENT floor, not the dev version: device Path B runs the Pi's system Python
+# (3.11 on Bookworm), so newer-only constructs must be flagged here rather than failing at deploy.
+target-version = "py311"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
